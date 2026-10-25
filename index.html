@@ -65,7 +65,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{ou
 
 /* shell */
 .main{max-width:1180px;margin:0 auto;padding-block:18px calc(var(--tabh) + 28px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-.view{display:flex;flex-direction:column;gap:14px}
+.view,#coachBody{display:flex;flex-direction:column;gap:14px}
 .vh{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:4px 2px 0}
 .vh h2{font-size:22px;font-weight:700;margin:0;letter-spacing:.01em}
 .vh p{margin:0;color:var(--muted);font-size:13px}
@@ -150,6 +150,21 @@ td{padding:10px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
 tr:last-child td{border-bottom:0}
 td.n,th.n{text-align:right}
 
+/* coach */
+.ai-tag{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--s1);background:color-mix(in srgb,var(--s1) 12%,transparent);padding:2px 9px;border-radius:999px}
+.coach-h{font-size:18px;font-weight:700;margin:0;line-height:1.4}
+.coach-p{margin:0;font-size:14px;line-height:1.7}
+.blt{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.6}
+.blt.ok li::marker{color:var(--ok)} .blt.bad li::marker{color:var(--bad)}
+.plan{display:flex;flex-direction:column}
+.plan .d{display:grid;grid-template-columns:44px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid var(--grid)}
+.plan .d:last-child{border-bottom:0}
+.plan .day{font-weight:700;font-size:13px;color:var(--muted);padding-top:1px}
+.plan .w{font-weight:600;font-size:14px}
+.plan .x{font-size:12.5px;color:var(--muted);line-height:1.55}
+.plan .d.rest .w{color:var(--muted);font-weight:500}
+.coach-empty ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;font-size:14px}
+
 /* settings */
 .list{display:flex;flex-direction:column;background:var(--panel);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
 .li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--grid);min-height:52px}
@@ -223,6 +238,13 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
         <div><b id="heroAvg">—</b><span>近 4 週平均 km</span></div>
       </div>
     </div>
+
+    <section class="card" id="coachCard">
+      <div class="ph"><h3>AI 教練</h3><span class="ai-tag">DeepSeek</span></div>
+      <p class="coach-h" id="coachHead"></p>
+      <p class="note" id="coachSub"></p>
+      <button class="btn ghost" type="button" id="toCoach">看完整分析與下週課表</button>
+    </section>
 
     <div class="grid">
       <section class="card">
@@ -332,6 +354,40 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
     </section>
   </section>
 
+  <!-- 教練 -->
+  <section class="view" data-view="coach" hidden>
+    <div class="vh"><h2>AI 教練</h2><p id="coachWhen"></p></div>
+    <div id="coachBody" hidden>
+      <section class="card">
+        <div class="ph"><h3>目前狀態</h3><span class="ai-tag">DeepSeek</span></div>
+        <p class="coach-h" id="cHead"></p>
+        <p class="coach-p" id="cStatus"></p>
+      </section>
+      <div class="grid">
+        <section class="card"><div class="ph"><h3>做得好的地方</h3></div><ul class="blt ok" id="cGood"></ul></section>
+        <section class="card"><div class="ph"><h3>需要注意</h3></div><ul class="blt bad" id="cRisk"></ul></section>
+      </div>
+      <section class="card">
+        <div class="ph"><h3>下週課表</h3><span class="note">依你最近的跑量與強度安排</span></div>
+        <div class="plan" id="cPlan"></div>
+      </section>
+      <div class="grid">
+        <section class="card"><div class="ph"><h3>成績預測</h3></div><p class="coach-p" id="cRace"></p></section>
+        <section class="card"><div class="ph"><h3>訓練建議</h3></div><ul class="blt" id="cTips"></ul></section>
+      </div>
+      <p class="note" id="cFoot"></p>
+    </div>
+    <section class="card coach-empty" id="coachEmpty">
+      <div class="ph"><h3>還沒有 AI 分析</h3></div>
+      <p class="coach-p" id="coachEmptyWhy"></p>
+      <ol>
+        <li>到 GitHub repo 的 Settings → Secrets and variables → Actions，新增 <code>DEEPSEEK_API_KEY</code>，值填你的 DeepSeek API 金鑰。</li>
+        <li>到 Actions →「同步 Garmin 跑步資料」→ Run workflow，跑完後重新打開 App。</li>
+      </ol>
+      <p class="note">金鑰只存在 GitHub，不會出現在網頁裡。分析每次同步到新的跑步時自動更新。</p>
+    </section>
+  </section>
+
   <!-- 設定 -->
   <section class="view" data-view="settings" hidden>
     <div class="vh"><h2>設定</h2></div>
@@ -367,6 +423,7 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
   <button class="tab" data-view="train"><svg viewBox="0 0 24 24"><path d="M4 20V11M10 20V6M16 20v-8M22 20H2"/></svg>訓練</button>
   <button class="tab" data-view="form"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>跑姿</button>
   <button class="tab" data-view="records"><svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg>紀錄</button>
+  <button class="tab" data-view="coach"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.9 2.1 2.1.9-2.1.9L19 21l-.9-2.1-2.1-.9 2.1-.9z"/></svg>教練</button>
   <button class="tab" data-view="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>設定</button>
 </nav>
 
@@ -779,12 +836,12 @@ function renderHero(){
 }
 
 /* ---------- views ---------- */
-const VIEWS=['home','train','form','records','settings'];
+const VIEWS=['home','train','form','coach','records','settings'];
 function setView(v,scroll){
   if(!VIEWS.includes(v))v='home';
   document.querySelectorAll('.view').forEach(s=>s.hidden=s.dataset.view!==v);
   document.querySelectorAll('.tab').forEach(t=>t.dataset.view===v?t.setAttribute('aria-current','page'):t.removeAttribute('aria-current'));
-  $('#range').hidden=v==='settings';
+  $('#range').hidden=v==='settings'||v==='coach';
   try{localStorage.setItem(STORE+'.view',v)}catch(e){}
   if(scroll)window.scrollTo(0,0);
   render();
@@ -794,11 +851,41 @@ document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>setView(t.dataset.vie
 function render(){
   RUNS.sort((a,b)=>a.date-b.date);
   const cur=windowRuns(state.range),prev=state.range==='all'?[]:windowRuns(state.range,+state.range);
-  renderKPIs(cur,prev);renderWeekly();renderACWR();renderPace(cur);renderZones(cur);renderMonthly();renderPBs(cur);renderTable(cur);renderForm(cur);renderHero();
+  renderKPIs(cur,prev);renderWeekly();renderACWR();renderPace(cur);renderZones(cur);renderMonthly();renderPBs(cur);renderTable(cur);renderForm(cur);renderHero();renderCoach();
   const s=$('#src');s.className='src '+(SOURCE.sample?'sample':'mine');s.textContent=SOURCE.sample?'範例資料':`${SOURCE.name} · ${RUNS.length} 次跑步`;
   $('#reset').hidden=SOURCE.sample||!!SOURCE.auto;
   $('#maxhr').placeholder=autoMax();
 }
+
+/* ---------- AI coach ---------- */
+let ANALYSIS=null;
+const hel=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e};
+const list=(id,items)=>{const u=$(id);u.replaceChildren(...(Array.isArray(items)?items:[]).map(t=>hel('li',null,String(t))));u.closest('.card').hidden=!u.children.length};
+function renderCoach(){
+  const a=ANALYSIS;
+  $('#coachBody').hidden=!a;$('#coachEmpty').hidden=!!a;
+  if(!a){
+    $('#coachHead').textContent='讓 AI 幫你看懂這些數據';
+    $('#coachSub').textContent=SOURCE.auto?'加上 DeepSeek 金鑰後，每次同步都會產生專業分析與下週課表。':'AI 分析會跟著 Garmin 自動同步一起產生，先完成自動同步設定。';
+    $('#coachEmptyWhy').textContent=SOURCE.auto?'自動同步已經在運作，再加一把 DeepSeek 金鑰就能開始。':'AI 分析在 GitHub 上跟著自動同步一起產生，需要先設定好自動同步（見 README），再加上 DeepSeek 金鑰。';
+    $('#toCoach').textContent='怎麼開啟 AI 分析';
+    $('#coachWhen').textContent='';return;
+  }
+  const g=new Date(a.generated),when=isNaN(g)?'':`${fmtDate(g)} ${pad(g.getHours())}:${pad(g.getMinutes())}`;
+  $('#coachHead').textContent=a.headline||'';
+  $('#coachSub').textContent=(a.status||'').split(/(?<=。)/)[0];
+  $('#toCoach').textContent='看完整分析與下週課表';
+  $('#coachWhen').textContent=when?`${when} 更新`:'';
+  $('#cHead').textContent=a.headline||'';$('#cStatus').textContent=a.status||'';
+  list('#cGood',a.strengths);list('#cRisk',a.risks);list('#cTips',a.tips);
+  $('#cPlan').replaceChildren(...(Array.isArray(a.plan)?a.plan:[]).map(p=>{
+    const d=hel('div','d'+(/休息/.test(p.workout||'')?' rest':''));
+    const b=hel('div');b.append(hel('div','w',p.workout||''),hel('div','x',p.detail||''));
+    d.append(hel('div','day',p.day||''),b);return d}));
+  $('#cRace').textContent=a.race_prediction||'';$('#cRace').closest('.card').hidden=!a.race_prediction;
+  $('#cFoot').textContent=`由 ${a.model||'DeepSeek'} 依你的 Garmin 數據產生，僅供參考，不能取代專業醫療或教練的判斷。身體不適請先休息。`;
+}
+$('#toCoach').onclick=()=>setView('coach',true);
 
 /* ---------- storage ---------- */
 function save(){try{localStorage.setItem(STORE,JSON.stringify({name:SOURCE.name,runs:RUNS.map(r=>({...r,date:r.date.toISOString()})),settings:{maxHr:state.maxHr,restHr:state.restHr,unit:state.unit,range:state.range}}))}catch(e){}}
@@ -850,7 +937,7 @@ async function decryptBlob(blob,pw){
 function applySync(data){
   const runs=data.runs.map(r=>({...r,date:parseDate(r.date)})).filter(r=>r.date&&r.dist&&r.secs);
   if(!runs.length)return;
-  RUNS=runs;SOURCE={sample:false,auto:true,name:'Garmin 自動同步'};
+  RUNS=runs;SOURCE={sample:false,auto:true,name:'Garmin 自動同步'};ANALYSIS=data.analysis&&data.analysis.headline?data.analysis:null;
   const t=new Date(data.updated);
   msg(`已載入 Garmin 自動同步的 <b>${runs.length}</b> 次跑步，最後更新：${fmtDate(t)} ${pad(t.getHours())}:${pad(t.getMinutes())}。 <button type="button" class="linkbtn" id="forget">讓這台裝置忘記密碼</button>`);
   $('#forget').onclick=()=>{try{localStorage.removeItem(PW)}catch(e){}location.reload()};

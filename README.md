@@ -29,6 +29,18 @@ repo 裡的 GitHub Actions（`.github/workflows/sync-garmin.yml`）每天台灣�
 - 這是透過非官方的 `garminconnect` 套件登入。如果 Garmin 帳號有開兩步驟驗證，或 Garmin 改版，自動登入可能會失敗，在 Actions 頁面會看到紅色叉叉，這時改用手動匯入即可。
 - 要停止自動同步：在 Actions 頁面停用這個 workflow，或刪除那三個 Secret。
 
+## AI 教練分析（DeepSeek，選用）
+
+設定好自動同步後，再加一把 DeepSeek 金鑰，每次同步到新的跑步時，就會請 DeepSeek 以跑步教練的角度分析，結果顯示在 App 的「教練」分頁：目前狀態、做得好的地方、需要注意的風險、下週 7 天課表、成績預測和訓練建議。
+
+1. repo 的 **Settings → Secrets and variables → Actions → New repository secret**，名稱 `DEEPSEEK_API_KEY`，值填你的 DeepSeek API 金鑰。
+2. **Actions →「同步 Garmin 跑步資料」→ Run workflow**，跑完重新打開 App。
+
+- 金鑰只存在 GitHub Secrets，不會出現在網頁或 repo 裡。分析結果和跑步資料一起加密存放。
+- 送給 DeepSeek 的是整理過的摘要：近 12 週跑量、最近 20 次跑步的日期、標題、距離、配速、心率、步頻、步幅、爬升，以及各距離最佳推估。不包含 Garmin 帳號或位置軌跡。
+- 沒有新跑步時不會重新呼叫 API；呼叫失敗時沿用上一次的分析，不影響資料同步。
+- 想換模型，在 workflow 的 env 加 `DEEPSEEK_MODEL`（預設 `deepseek-chat`）。
+
 ## 用手機取得資料（iPhone）
 
 Garmin Connect App 本身沒有匯出功能，要改用 Safari 開網頁版：
