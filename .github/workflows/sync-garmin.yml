@@ -19,8 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install "garminconnect==0.3.20" "cryptography>=42"
@@ -37,4 +39,9 @@ jobs:
           git add data/runs.enc.json
           if git diff --cached --quiet; then echo "沒有變動"; exit 0; fi
           git commit -m "自動同步 Garmin 跑步紀錄"
-          git push
+          # 另一次同步可能剛推上新的資料檔，先接上最新的 main，衝突時以這次較新的檔案為準
+          for i in 1 2 3; do
+            git pull --rebase -X theirs origin main && git push && exit 0
+            sleep 5
+          done
+          exit 1
