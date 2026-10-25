@@ -19,7 +19,7 @@
   --bg:#f3f5f7; --panel:#ffffff; --fg:#141a20; --muted:#5a6470; --line:#dde2e8; --grid:#e9edf1;
   --s1:#2a78d6; --s2:#eb6834; --ok:#1d8048; --warn:#a86b00; --bad:#c3372c; --band:rgba(29,128,72,.10);
   --z1:#86b6ef; --z2:#5598e7; --z3:#2a78d6; --z4:#1c5cab; --z5:#104281;
-  --chip:#e7ecf2;
+  --chip:#e7ecf2; --old:#a3adb8;
   --f-display:"Barlow Condensed","Noto Sans TC",system-ui,sans-serif;
   --f-body:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;
   --f-data:"IBM Plex Mono",ui-monospace,Menlo,monospace;
@@ -27,11 +27,11 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0f1317; --panel:#171c22; --fg:#edf1f5; --muted:#9aa5b1; --line:#2a323b; --grid:#222a32;
   --s1:#3987e5; --s2:#d95926; --ok:#43b874; --warn:#e0a43a; --bad:#ec6a5e; --band:rgba(67,184,116,.14);
-  --z1:#184f95; --z2:#256abf; --z3:#3987e5; --z4:#6da7ec; --z5:#9ec5f4; --chip:#222a33; color-scheme:dark}}
+  --z1:#184f95; --z2:#256abf; --z3:#3987e5; --z4:#6da7ec; --z5:#9ec5f4; --chip:#222a33; --old:#5b6673; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0f1317; --panel:#171c22; --fg:#edf1f5; --muted:#9aa5b1; --line:#2a323b; --grid:#222a32;
   --s1:#3987e5; --s2:#d95926; --ok:#43b874; --warn:#e0a43a; --bad:#ec6a5e; --band:rgba(67,184,116,.14);
-  --z1:#184f95; --z2:#256abf; --z3:#3987e5; --z4:#6da7ec; --z5:#9ec5f4; --chip:#222a33; color-scheme:dark}
+  --z1:#184f95; --z2:#256abf; --z3:#3987e5; --z4:#6da7ec; --z5:#9ec5f4; --chip:#222a33; --old:#5b6673; color-scheme:dark}
 [hidden]{display:none!important}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 body{margin:0}
@@ -80,6 +80,8 @@ h2{font-size:15px;margin:0;font-weight:700}
 .base{stroke:var(--line);stroke-width:1}
 .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12.5px;font-weight:500;border:1px solid currentColor}
 .pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)} .pill.bad{color:var(--bad)} .pill.low{color:var(--muted)}
+.sect{background:transparent;border:0;padding:6px 2px 0}
+.sect-h{font-family:var(--f-display);font-size:24px;font-weight:700;letter-spacing:.01em}
 .zones{display:flex;flex-direction:column;gap:9px}
 .zrow{display:grid;grid-template-columns:118px 1fr 120px;gap:10px;align-items:center;font-size:13px}
 .zrow .zl b{font-family:var(--f-data);font-weight:500}
@@ -158,6 +160,45 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
       <div class="ph"><h2>心率區間分布</h2><span class="note" id="zoneBasis"></span></div>
       <div class="zones" id="zones"></div>
       <p class="note">依每次跑步的「平均心率」歸區、累計時間。要看每秒的區間時間需要 FIT 檔，這裡是近似值。</p>
+    </section>
+
+    <section class="panel wide sect"><h2 class="sect-h">跑姿與心率分析</h2><p class="note">只計入 1.5 km 以上的跑步，避免暖身、緩和的短跑拉偏平均。橘線是近 8 次平均。</p></section>
+
+    <section class="panel">
+      <div class="ph"><h2>步頻趨勢</h2><span class="note" id="cadStat"></span></div>
+      <div class="chart" id="cadChart"></div>
+      <p class="note">單位是每分鐘步數（spm）。綠色帶是常見建議的 170–180，實際的最佳值因身高和配速而異。</p>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h2>步幅趨勢</h2><span class="note" id="strideStat"></span></div>
+      <div class="chart" id="strideChart"></div>
+      <p class="note">每一步前進的距離（公尺）。速度＝步頻 × 步幅，配速變快時，看是哪一個在進步。</p>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h2>平均心率趨勢</h2><span class="note" id="hrStat"></span></div>
+      <div class="chart" id="hrChart"></div>
+      <p class="note">每次跑步的平均心率。要搭配配速一起看：心率下降而配速不變，代表體能進步。</p>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h2>有氧效率（EF）</h2><span class="note" id="efStat"></span></div>
+      <div class="chart" id="efChart"></div>
+      <p class="note">速度（公尺／分鐘）÷ 平均心率，也就是每一次心跳能跑多遠。數值往上走，代表有氧能力在進步。</p>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h2>配速 × 心率</h2>
+        <div class="legend"><span><i class="bar" style="background:var(--s1);border-radius:50%"></i>近 30 天</span><span><i class="bar" style="background:var(--old);border-radius:50%"></i>更早</span></div></div>
+      <div class="chart" id="phChart"></div>
+      <p class="note">同樣的心率下，點的位置越高代表跑得越快。藍點整體比灰點高，就是最近進步了。</p>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h2>步頻 × 配速</h2><span class="note" id="cpStat"></span></div>
+      <div class="chart" id="cpChart"></div>
+      <p class="note">越往右代表跑得越快。點往右上方延伸，代表你主要靠提高步頻來加速；如果偏平，就是靠加大步幅。</p>
     </section>
 
     <section class="panel">
@@ -275,6 +316,7 @@ const ALIASES={
   te:['aerobic te','有氧訓練效果','有氧训练效果'],
   cad:['avg run cadence','平均跑步步頻','平均跑步步频','平均步頻','平均步频'],
   ascent:['total ascent','總爬升','总爬升','總上升','总上升'],
+  stride:['avg stride length','平均步幅','平均步长','平均步長'],
   tss:['training stress score','訓練壓力分數','训练压力分数']
 };
 const norm=h=>h.replace(/^﻿/,'').replace(/[®™]/g,'').trim().toLowerCase();
@@ -306,7 +348,7 @@ function fromCSV(text){
     if(!date||!dist||!secs)continue;
     out.push({date,title:(m.title!=null&&r[m.title])||type||'跑步',dist:dist*k,secs,
       avgHr:m.avgHr!=null?num(r[m.avgHr]):null,maxHr:m.maxHr!=null?num(r[m.maxHr]):null,
-      cad:m.cad!=null?num(r[m.cad]):null,ascent:m.ascent!=null?num(r[m.ascent]):null,
+      cad:m.cad!=null?num(r[m.cad]):null,ascent:m.ascent!=null?num(r[m.ascent]):null,stride:m.stride!=null?num(r[m.stride]):null,
       te:m.te!=null?num(r[m.te]):null,tss:m.tss!=null?num(r[m.tss]):null});
   }
   return out;
@@ -325,7 +367,7 @@ function fromJSON(text){
     const dist=(a.distance||0)/1e5,secs=(a.movingDuration||a.duration||0)/1e3;
     if(!date||isNaN(date)||!dist||!secs)continue;
     out.push({date,title:a.name||'跑步',dist,secs,avgHr:a.avgHr??null,maxHr:a.maxHr??null,
-      cad:a.avgDoubleCadence?Math.round(a.avgDoubleCadence):null,ascent:a.elevationGain!=null?Math.round(a.elevationGain/100):null,
+      cad:a.avgDoubleCadence?Math.round(a.avgDoubleCadence):null,ascent:a.elevationGain!=null?Math.round(a.elevationGain/100):null,stride:a.avgStrideLength?a.avgStrideLength/100:null,
       te:a.aerobicTrainingEffect!=null?+(+a.aerobicTrainingEffect).toFixed(1):null,tss:a.trainingStressScore??null});
   }
   return out;
@@ -408,7 +450,9 @@ function renderKPIs(cur,prev){
     ['總時間',fmtHours(secs),'小時',delta(secs,ps)],
     ['平均配速',fmtPace(pace),'/km',paceD],
     ['平均心率',hr?Math.round(hr):'—','bpm','時間加權'],
-    ['最長一次',long.toFixed(1),'km',cur.length?'期間內':'']
+    ['最長一次',long.toFixed(1),'km',cur.length?'期間內':''],
+    ['平均步頻',(()=>{const c=cur.filter(r=>r.cad&&r.dist>=1.5);return c.length?Math.round(sum(c,r=>r.cad*r.secs)/sum(c,r=>r.secs)):'—'})(),'spm','時間加權'],
+    ['平均步幅',(()=>{const c=cur.filter(r=>strideOf(r)&&r.dist>=1.5);return c.length?(sum(c,r=>r.dist)*1000/sum(c,r=>r.dist*1000/strideOf(r))).toFixed(2):'—'})(),'m','總距離 ÷ 總步數']
   ];
   $('#kpis').innerHTML=k.map(([a,b,c,d])=>`<div class="kpi"><span class="k">${a}</span><span class="v">${b}<small>${c}</small></span><span class="d">${d||'&nbsp;'}</span></div>`).join('');
 }
@@ -511,10 +555,71 @@ function renderTable(cur){
     for(const [v,c] of cells){const td=document.createElement('td');td.textContent=v;if(c)td.className=c;tr.append(td)}tb.append(tr)}
 }
 
+
+/* ---------- form & heart rate ---------- */
+const strideOf=r=>r.stride||(r.cad?r.dist*1000/(r.cad*r.secs/60):null);
+const efOf=r=>r.avgHr?(r.dist*1000/(r.secs/60))/r.avgHr:null;
+const meanOf=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:null;
+function noData(svg,W,H,t){el('text',{x:W/2,y:H/2,'text-anchor':'middle',class:'ax'},svg).textContent=t}
+function scaleY(lo,hi,band,pace){if(band){lo=Math.min(lo,band[0]);hi=Math.max(hi,band[1])}const step=pace?((hi-lo)/4>45?60:30):niceStep((hi-lo)/4||1);lo=Math.floor(lo/step)*step;hi=Math.ceil(hi/step)*step;if(hi===lo)hi=lo+step;return{lo,hi,step}}
+function timeScatter(box,rs,valFn,{H=210,fmt=v=>v,band=null,bandLabel='',tip}){
+  const {svg,W}=frame(box,H),m={l:44,r:10,t:12,b:26};
+  const pts=rs.map(r=>({r,v:valFn(r)})).filter(p=>p.v!=null&&isFinite(p.v)).sort((a,b)=>a.r.date-b.r.date);
+  if(pts.length<2){noData(svg,W,H,'這段期間的資料不足');return null}
+  const vs=pts.map(p=>p.v),{lo,hi,step}=scaleY(Math.min(...vs),Math.max(...vs),band);
+  const ih=H-m.t-m.b,iw=W-m.l-m.r,y=v=>m.t+ih-(v-lo)/(hi-lo)*ih;
+  const t0=pts[0].r.date.getTime(),t1=Math.max(t0+DAY,pts[pts.length-1].r.date.getTime()),x=t=>m.l+(t-t0)/(t1-t0)*iw;
+  for(let v=lo;v<=hi+1e-9;v+=step){el('line',{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),class:'gl'},svg);el('text',{x:m.l-6,y:y(v)+3.5,'text-anchor':'end',class:'ax'},svg).textContent=fmt(v)}
+  if(band){el('rect',{x:m.l,y:y(band[1]),width:iw,height:y(band[0])-y(band[1]),fill:'var(--band)'},svg);if(bandLabel)el('text',{x:m.l+4,y:y(band[1])+12,class:'ax'},svg).textContent=bandLabel}
+  pts.forEach(p=>{const cx=x(p.r.date.getTime()),cy=y(p.v);
+    el('circle',{cx,cy,r:4,fill:'var(--s1)','fill-opacity':.6,stroke:'var(--panel)','stroke-width':1.5},svg);
+    const h=el('circle',{cx,cy,r:10,fill:'transparent'},svg);
+    h.addEventListener('pointermove',e=>showTip(e,`${fmtDate(p.r.date)} ${p.r.title}`,tip(p.r,p.v)));h.addEventListener('pointerleave',hideTip)});
+  const line=pts.map((p,i)=>{const s=vs.slice(Math.max(0,i-7),i+1);return x(p.r.date.getTime()).toFixed(1)+','+y(meanOf(s)).toFixed(1)});
+  el('polyline',{points:line.join(' '),fill:'none',stroke:'var(--s2)','stroke-width':2,'stroke-linejoin':'round','pointer-events':'none'},svg);
+  const n=Math.max(2,Math.floor(iw/90));for(let k=0;k<=n;k++){const t=t0+(t1-t0)*k/n;el('text',{x:x(t),y:H-8,'text-anchor':k===0?'start':k===n?'end':'middle',class:'ax'},svg).textContent=fmtMD(new Date(t))}
+  const half=Math.floor(vs.length/2);return{first:meanOf(vs.slice(0,half)),last:meanOf(vs.slice(-half)),all:meanOf(vs),n:vs.length};
+}
+function xyScatter(box,pts,{H=230,fmtX=v=>v,fmtY=v=>v,invertX=false,invertY=false,xLabel='',yLabel='',paceX=false,paceY=false}){
+  const {svg,W}=frame(box,H),m={l:46,r:12,t:24,b:30};
+  if(pts.length<3){noData(svg,W,H,'這段期間的資料不足');return}
+  const sx=scaleY(Math.min(...pts.map(p=>p.x)),Math.max(...pts.map(p=>p.x)),null,paceX),sy=scaleY(Math.min(...pts.map(p=>p.y)),Math.max(...pts.map(p=>p.y)),null,paceY);
+  const iw=W-m.l-m.r,ih=H-m.t-m.b;
+  const x=v=>{const f=(v-sx.lo)/(sx.hi-sx.lo);return m.l+(invertX?1-f:f)*iw},y=v=>{const f=(v-sy.lo)/(sy.hi-sy.lo);return m.t+(invertY?f:1-f)*ih};
+  for(let v=sy.lo;v<=sy.hi+1e-9;v+=sy.step){el('line',{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),class:'gl'},svg);el('text',{x:m.l-6,y:y(v)+3.5,'text-anchor':'end',class:'ax'},svg).textContent=fmtY(v)}
+  for(let v=sx.lo;v<=sx.hi+1e-9;v+=sx.step){el('text',{x:x(v),y:H-14,'text-anchor':'middle',class:'ax'},svg).textContent=fmtX(v)}
+  el('text',{x:W-m.r,y:H-2,'text-anchor':'end',class:'ax'},svg).textContent=xLabel;
+  el('text',{x:4,y:10,class:'ax'},svg).textContent=yLabel;
+  pts.slice().sort((a,b)=>(a.hi?1:0)-(b.hi?1:0)).forEach(p=>{const cx=x(p.x),cy=y(p.y);
+    el('circle',{cx,cy,r:4.5,fill:p.hi===false?'var(--old)':'var(--s1)','fill-opacity':p.hi===false?.75:.7,stroke:'var(--panel)','stroke-width':1.5},svg);
+    const h=el('circle',{cx,cy,r:10,fill:'transparent'},svg);
+    h.addEventListener('pointermove',e=>showTip(e,p.title,p.lines));h.addEventListener('pointerleave',hideTip)});
+}
+function trendText(id,s,fmt,upGood,unit){
+  const elx=$('#'+id);if(!s||s.n<6){elx.textContent=s?`平均 ${fmt(s.all)}${unit}`:'';return}
+  const d=s.last-s.first,good=upGood?d>0:d<0;
+  if(+fmt(Math.abs(d))===0){elx.textContent=`平均 ${fmt(s.all)}${unit} · 後半段持平`;return}
+  elx.innerHTML=`平均 ${fmt(s.all)}${unit} · 後半段 <span style="color:var(${Math.abs(d)<1e-9?'--muted':good?'--ok':'--bad'})">${d>0?'▲':'▼'} ${fmt(Math.abs(d))}</span>`;
+}
+function renderForm(cur){
+  const rs=cur.filter(r=>r.dist>=1.5);
+  const base=r=>[`${r.dist.toFixed(2)} km · 配速 ${fmtPace(r.secs/r.dist)}/km`];
+  trendText('cadStat',timeScatter($('#cadChart'),rs,r=>r.cad,{band:[170,180],bandLabel:'170–180',fmt:v=>Math.round(v),tip:(r,v)=>[`步頻 ${Math.round(v)} spm`,...base(r)]}),v=>Math.round(v),true,' spm');
+  trendText('strideStat',timeScatter($('#strideChart'),rs,strideOf,{fmt:v=>v.toFixed(2),tip:(r,v)=>[`步幅 ${v.toFixed(2)} m`,...base(r)]}),v=>v.toFixed(2),true,' m');
+  trendText('hrStat',timeScatter($('#hrChart'),rs,r=>r.avgHr,{fmt:v=>Math.round(v),tip:(r,v)=>[`平均心率 ${Math.round(v)} bpm`,r.maxHr?`最大心率 ${Math.round(r.maxHr)}`:'',...base(r)]}),v=>Math.round(v),false,' bpm');
+  trendText('efStat',timeScatter($('#efChart'),rs,efOf,{fmt:v=>v.toFixed(2),tip:(r,v)=>[`EF ${v.toFixed(2)}`,`平均心率 ${Math.round(r.avgHr)}`,...base(r)]}),v=>v.toFixed(2),true,'');
+  const cut=startOfDay(new Date()).getTime()-29*DAY;
+  xyScatter($('#phChart'),rs.filter(r=>r.avgHr).map(r=>({x:r.avgHr,y:r.secs/r.dist,hi:r.date.getTime()>=cut,title:`${fmtDate(r.date)} ${r.title}`,lines:[`平均心率 ${Math.round(r.avgHr)} · 配速 ${fmtPace(r.secs/r.dist)}/km`,`${r.dist.toFixed(2)} km`]})),{fmtX:v=>Math.round(v),fmtY:fmtPace,invertY:true,paceY:true,xLabel:'平均心率 bpm →',yLabel:'配速 /km（越上越快）'});
+  const cp=rs.filter(r=>r.cad);
+  xyScatter($('#cpChart'),cp.map(r=>({x:r.secs/r.dist,y:r.cad,title:`${fmtDate(r.date)} ${r.title}`,lines:[`配速 ${fmtPace(r.secs/r.dist)}/km · 步頻 ${Math.round(r.cad)}`,`步幅 ${strideOf(r).toFixed(2)} m`]})),{fmtX:fmtPace,fmtY:v=>Math.round(v),invertX:true,paceX:true,xLabel:'配速（越右越快）→',yLabel:'步頻 spm'});
+  if(cp.length>=5){const xs=cp.map(r=>r.dist*1000/r.secs),ys=cp.map(r=>r.cad),mx=meanOf(xs),my=meanOf(ys);let sxy=0,sxx=0,syy=0;xs.forEach((v,i)=>{sxy+=(v-mx)*(ys[i]-my);sxx+=(v-mx)**2;syy+=(ys[i]-my)**2});const rr=sxx&&syy?sxy/Math.sqrt(sxx*syy):0;
+    $('#cpStat').textContent=`相關係數 ${rr.toFixed(2)}（${Math.abs(rr)<.3?'弱':Math.abs(rr)<.6?'中等':'強'}）`}else $('#cpStat').textContent='';
+}
+
 function render(){
   RUNS.sort((a,b)=>a.date-b.date);
   const cur=windowRuns(state.range),prev=state.range==='all'?[]:windowRuns(state.range,+state.range);
-  renderKPIs(cur,prev);renderWeekly();renderACWR();renderPace(cur);renderZones(cur);renderMonthly();renderPBs(cur);renderTable(cur);
+  renderKPIs(cur,prev);renderWeekly();renderACWR();renderPace(cur);renderZones(cur);renderMonthly();renderPBs(cur);renderTable(cur);renderForm(cur);
   const s=$('#src');s.className='src '+(SOURCE.sample?'sample':'mine');s.textContent=SOURCE.sample?'範例資料':`${SOURCE.name} · ${RUNS.length} 次跑步`;
   $('#reset').hidden=SOURCE.sample;
   $('#maxhr').placeholder=autoMax();
