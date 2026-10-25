@@ -232,19 +232,21 @@ function makeSample(){
 }
 
 /* ---------- parsing ---------- */
+let lastEnc='',lastSep=',',lastCols=null;
 function decodeBuf(buf){
   const b=new Uint8Array(buf);
-  if(b[0]===0xFF&&b[1]===0xFE)return new TextDecoder('utf-16le').decode(b);
-  if(b[0]===0xFE&&b[1]===0xFF)return new TextDecoder('utf-16be').decode(b);
-  try{return new TextDecoder('utf-8',{fatal:true}).decode(b)}catch(e){}
-  for(const enc of ['big5','gb18030']){try{return new TextDecoder(enc,{fatal:true}).decode(b)}catch(e){}}
+  if(b[0]===0xFF&&b[1]===0xFE){lastEnc='UTF-16 LE';return new TextDecoder('utf-16le').decode(b)}
+  if(b[0]===0xFE&&b[1]===0xFF){lastEnc='UTF-16 BE';return new TextDecoder('utf-16be').decode(b)}
+  try{const t=new TextDecoder('utf-8',{fatal:true}).decode(b);lastEnc=b[0]===0xEF&&b[1]===0xBB&&b[2]===0xBF?'UTF-8（有 BOM）':'UTF-8（無 BOM）';return t}catch(e){}
+  for(const [enc,name] of [['big5','Big5 繁中'],['gb18030','GB18030 簡中']]){try{const t=new TextDecoder(enc,{fatal:true}).decode(b);lastEnc=name;return t}catch(e){}}
+  lastEnc='無法確定，以 UTF-8 讀取，可能有亂碼';
   return new TextDecoder('utf-8').decode(b);
 }
 function parseCSV(text){
   text=text.replace(/^\uFEFF/,'');
   const first=text.slice(0,text.search(/\r?\n/)>0?text.search(/\r?\n/):text.length);
   const cnt=ch=>first.split(ch).length;
-  const sep=cnt('\t')>cnt(',')&&cnt('\t')>cnt(';')?'\t':cnt(';')>cnt(',')?';':',';
+  const sep=cnt('\t')>cnt(',')&&cnt('\t')>cnt(';')?'\t':cnt(';')>cnt(',')?';':',';lastSep=sep;
   const rows=[];let row=[],f='',q=false;
   for(let i=0;i<text.length;i++){const c=text[i];
     if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
@@ -287,6 +289,7 @@ const isRun=t=>!t||/run|跑/i.test(t);
 function fromCSV(text){
   const rows=parseCSV(text);if(rows.length<2)throw new Error('檔案裡沒有資料列。');
   const m=mapHeaders(rows[0]);
+  const N={avgHr:'心率',cad:'步頻',ascent:'爬升',te:'有氧 TE',tss:'TSS'};lastCols=Object.keys(N).filter(k=>m[k]!=null).map(k=>N[k]);
   if(m.date==null||m.dist==null||m.time==null)
     throw new Error('找不到日期、距離或時間欄位。這個檔案的欄位是：'+rows[0].slice(0,12).join('、')+'。請確認是 Garmin Connect「所有活動」頁匯出的 CSV。');
   const k=state.unit==='mi'?1.609344:1,out=[];
@@ -520,11 +523,12 @@ function saveSettings(){try{const j=JSON.parse(localStorage.getItem(STORE)||'{}'
 const msg=(html,err)=>{const m=$('#msg');m.hidden=false;m.className='msg'+(err?' err':'');m.innerHTML=html};
 function importFile(f){
   const rd=new FileReader();
-  rd.onload=()=>{try{const text=decodeBuf(rd.result);const runs=/\.json$/i.test(f.name)||/^\s*[\[{]/.test(text)?fromJSON(text):fromCSV(text);
+  rd.onload=()=>{try{lastCols=null;const text=decodeBuf(rd.result);const runs=/\.json$/i.test(f.name)||/^\s*[\[{]/.test(text)?fromJSON(text):fromCSV(text);
       if(!runs.length)throw new Error('檔案讀到了，但裡面沒有跑步活動。');
       RUNS=runs;SOURCE={sample:false,name:f.name};
       const span=Math.round((Math.max(...runs.map(r=>r.date))-Math.min(...runs.map(r=>r.date)))/DAY);
-      msg(`已匯入 <b>${runs.length}</b> 次跑步，涵蓋 ${span} 天。資料存在這個瀏覽器，下次打開還在。`);
+      const sn=lastSep==='\t'?'Tab':lastSep===';'?'分號':'逗號';
+      msg(`已匯入 <b>${runs.length}</b> 次跑步，涵蓋 ${span} 天。<br>檔案編碼：<b>${lastEnc}</b>${/\.json$/i.test(f.name)?'':` · 分隔符號：${sn}`}${lastCols?` · 另外讀到：${lastCols.join('、')||'（只有日期、距離、時間）'}`:''}。資料存在這個瀏覽器，下次打開還在。`);
       if(span>+state.range&&state.range!=='all'&&span>180)setRange('365');else render();save();
     }catch(e){msg('匯入失敗：'+e.message.replace(/</g,'&lt;'),true)}};
   rd.readAsArrayBuffer(f);
