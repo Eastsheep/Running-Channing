@@ -4,7 +4,30 @@
 
 **網址：** https://eastsheep.github.io/Running-Channing/
 
-整個看板只有一個 `index.html` 檔案。資料都在你的瀏覽器裡解析，不會上傳到任何地方，也不需要輸入 Garmin 帳號密碼。匯入的資料會存在這個瀏覽器，下次打開還在；換了裝置或清除瀏覽資料，就需要重新匯入。
+整個看板只有一個 `index.html` 檔案。手動匯入的檔案只會在你的瀏覽器裡解析，不會上傳。如果開啟自動同步，資料會先加密才存進這個公開 repo，要輸入你設定的資料密碼才看得到。匯入的資料會存在這個瀏覽器，下次打開還在；換了裝置或清除瀏覽資料，就需要重新匯入。
+
+## 自動同步（每天更新，免手動匯出）
+
+repo 裡的 GitHub Actions（`.github/workflows/sync-garmin.yml`）每天台灣時間 06:00 和 22:00 會自動登入 Garmin Connect，抓下全部的跑步紀錄，加密後存成 `data/runs.enc.json`。資料沒有變動時不會提交。
+
+### 第一次設定（用手機的 Safari 就能完成）
+
+1. 打開 https://github.com/Eastsheep/Running-Channing/settings/secrets/actions （畫面太擠的話，點網址列的「ᴀA」，選「要求桌面版網站」）。
+2. 按「New repository secret」，依序新增三個 Secret：
+   | Name | Secret 要填的內容 |
+   |---|---|
+   | `GARMIN_EMAIL` | Garmin 登入用的 email |
+   | `GARMIN_PASSWORD` | Garmin 密碼 |
+   | `DATA_PASSWORD` | 你自己取一組新密碼，用來解鎖看板。不要和 Garmin 密碼相同，建議 12 個字元以上 |
+3. 打開 https://github.com/Eastsheep/Running-Channing/actions ，點左側的「同步 Garmin 跑步紀錄」，再按右邊的「Run workflow」→「Run workflow」，手動跑第一次。
+4. 大約一分鐘後出現綠色勾勾，就代表成功。打開看板網址，輸入 `DATA_PASSWORD` 就能看到資料。勾選「這台裝置記住密碼」，之後就不用再輸入。
+
+### 注意
+
+- Secret 存進去之後，GitHub 不會再顯示內容，連 repo 擁有者也看不到，只有排程執行時才會用到。
+- 加密方式是 AES-256-GCM，金鑰用 PBKDF2-SHA256（25 萬次）從 `DATA_PASSWORD` 推導而來。密碼越長越安全。
+- 這是透過非官方的 `garminconnect` 套件登入。如果 Garmin 帳號有開兩步驟驗證，或 Garmin 改版，自動登入可能會失敗，在 Actions 頁面會看到紅色叉叉，這時改用手動匯入即可。
+- 要停止自動同步：在 Actions 頁面停用這個 workflow，或刪除那三個 Secret。
 
 ## 用手機取得資料（iPhone）
 

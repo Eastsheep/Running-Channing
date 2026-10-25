@@ -56,6 +56,11 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .spacer{flex:1}
 .msg{font-size:13px;padding:8px 12px;border-radius:8px;background:var(--chip)}
 .msg.err{color:var(--bad)}
+.unlock{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:var(--panel);border:1px solid var(--s1);border-radius:10px;padding:12px 14px;font-size:13px}
+.unlock label{color:var(--fg)} .unlock .rem{color:var(--muted);display:flex;align-items:center;gap:5px}
+.unlock input[type=password]{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px 8px;width:180px;max-width:100%}
+.err-t{color:var(--bad)}
+.linkbtn{font:inherit;font-size:12.5px;background:none;border:0;color:var(--s1);text-decoration:underline;cursor:pointer;padding:0}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
 .kpi .k{color:var(--muted);font-size:12.5px;letter-spacing:.04em}
@@ -116,7 +121,7 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
   <header>
     <div>
       <h1>跑步承廷</h1>
-      <p class="sub">匯入 Garmin Connect 的活動資料，看跑量、配速、心率區間與訓練負荷。資料只在你的瀏覽器裡處理，不會上傳。</p>
+      <p class="sub">看跑量、配速、心率區間與訓練負荷。手動匯入的檔案只在你的瀏覽器裡處理；自動同步的資料會加密後存放，要用你的密碼才能打開。</p>
     </div>
     <span id="src" class="src sample">範例資料</span>
   </header>
@@ -133,6 +138,13 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
     <button class="btn" id="pick">匯入 Garmin 檔案</button>
     <button class="btn ghost" id="reset" hidden>改回範例資料</button>
   </div>
+  <form id="unlock" class="unlock" hidden>
+    <label for="syncpw">已有 Garmin 自動同步的資料（加密）。輸入你設定的資料密碼來解鎖：</label>
+    <input id="syncpw" type="password" autocomplete="current-password">
+    <label class="rem" for="remember"><input id="remember" type="checkbox" checked> 這台裝置記住密碼</label>
+    <button class="btn" type="submit">解鎖</button>
+    <span id="unlockErr" class="err-t"></span>
+  </form>
   <div id="msg" class="msg">目前顯示的是<b>範例資料</b>，不是你的紀錄。點「匯入 Garmin 檔案」或把 CSV 拖進頁面，就會換成你的數據（做法見最下方）。</div>
 
   <section class="kpis" id="kpis" aria-label="期間摘要"></section>
@@ -225,7 +237,7 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
         <li><b>最快：活動清單匯出 CSV。</b>電腦開 connect.garmin.com → 左側「活動」→「所有活動」→ 篩選「跑步」→ 一直往下捲到你要的最早日期（只會匯出已載入的列）→ 右上角「匯出 CSV」。得到 <code>Activities.csv</code>，直接匯入這裡。中文或英文介面的欄位都認得。</li>
         <li><b>只有手機時：</b>用手機瀏覽器（Safari 或 Chrome）開 connect.garmin.com 並登入，從選單切成「電腦版網站」，照上一步按「匯出 CSV」，檔案會存到「檔案」或「下載」。回到這頁按「匯入 Garmin 檔案」，選那個 CSV 就好。Garmin Connect App 本身沒有匯出功能。</li>
         <li><b>完整歷史：帳戶資料匯出。</b>Garmin 帳戶 → 帳戶設定 →「資料管理」→「匯出您的資料」，幾天內會寄來 zip。解開後在 <code>DI_CONNECT/DI-Connect-Fitness/</code> 找 <code>*_summarizedActivities.json</code>，匯入這裡即可。</li>
-        <li><b>自動更新：非官方 Python 套件 <code>garminconnect</code>。</b>在你自己的電腦上執行，帳密只留在你的電腦，不要貼給任何人。可以定期把活動存成 CSV 再匯入。</li>
+        <li><b>自動更新：</b>repo 裡的 GitHub Actions 每天台灣時間 06:00 和 22:00 會自動抓 Garmin 的跑步紀錄，加密後存進 repo。打開這個網址時會請你輸入資料密碼來解鎖，設定方式請看 README。</li>
       </ol>
       <p class="note">匯入後資料會記在這個瀏覽器，下次打開還在；換電腦或清除瀏覽資料就需要重新匯入。</p>
     </section>
@@ -663,12 +675,44 @@ $('#unit').onchange=e=>{state.unit=e.target.value;saveSettings();if(!SOURCE.samp
 let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(render,150)});
 addEventListener('scroll',hideTip,{passive:true});
 
+/* ---------- auto sync ---------- */
+const PW=STORE+'.syncpw';
+const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function decryptBlob(blob,pw){
+  const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+  const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64(blob.salt),iterations:blob.iter,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['decrypt']);
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64(blob.iv)},key,b64(blob.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+function applySync(data){
+  const runs=data.runs.map(r=>({...r,date:parseDate(r.date)})).filter(r=>r.date&&r.dist&&r.secs);
+  if(!runs.length)return;
+  RUNS=runs;SOURCE={sample:false,auto:true,name:'Garmin 自動同步'};
+  const t=new Date(data.updated);
+  msg(`已載入 Garmin 自動同步的 <b>${runs.length}</b> 次跑步，最後更新：${fmtDate(t)} ${pad(t.getHours())}:${pad(t.getMinutes())}。 <button type="button" class="linkbtn" id="forget">讓這台裝置忘記密碼</button>`);
+  $('#forget').onclick=()=>{try{localStorage.removeItem(PW)}catch(e){}location.reload()};
+  render();
+}
+async function autoSync(){
+  if(!window.crypto||!crypto.subtle)return;
+  let blob;try{const r=await fetch('data/runs.enc.json',{cache:'no-store'});if(!r.ok)return;blob=await r.json()}catch(e){return}
+  if(!blob||!blob.ct)return;
+  let saved=null;try{saved=localStorage.getItem(PW)}catch(e){}
+  if(saved){try{applySync(await decryptBlob(blob,saved));return}catch(e){try{localStorage.removeItem(PW)}catch(_){}}}
+  const f=$('#unlock');f.hidden=false;
+  f.onsubmit=async e=>{e.preventDefault();const pw=$('#syncpw').value;if(!pw)return;$('#unlockErr').textContent='解鎖中…';
+    try{const data=await decryptBlob(blob,pw);if($('#remember').checked){try{localStorage.setItem(PW,pw)}catch(_){}}
+      f.hidden=true;applySync(data)}
+    catch(_){$('#unlockErr').textContent='密碼不對，請再試一次。'}};
+}
+
 /* ---------- boot ---------- */
 if(restore()){$('#msg').innerHTML=`已載入你上次匯入的 <b>${RUNS.length}</b> 次跑步（${SOURCE.name.replace(/</g,'&lt;')}）。`}
 else RUNS=makeSample();
 if(state.maxHr)$('#maxhr').value=state.maxHr;$('#resthr').value=state.restHr;$('#unit').value=state.unit;
 document.querySelectorAll('#range button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===state.range));
 render();
+autoSync();
 })();
 </script>
 </body>
