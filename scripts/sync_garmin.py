@@ -3,6 +3,7 @@
 需要的環境變數（存在 GitHub Secrets）：
   GARMIN_EMAIL, GARMIN_PASSWORD  Garmin 帳號密碼
   DATA_PASSWORD                  儀表板解鎖用的密碼，用來加密資料
+  DEEPSEEK_API_KEY（選用）        有設定就會在資料更新時產生 AI 教練分析
 """
 import base64
 import json
@@ -79,12 +80,12 @@ def decrypt(blob, password):
     return json.loads(AESGCM(key).decrypt(d("iv"), d("ct"), None))
 
 
-def unchanged(runs, password):
+def load_previous(password):
     try:
         with open(OUT, encoding="utf-8") as f:
-            return decrypt(json.load(f), password)["runs"] == runs
+            return decrypt(json.load(f), password)
     except Exception:
-        return False
+        return None
 
 
 def main():
@@ -94,11 +95,26 @@ def main():
     runs = fetch_runs()
     if not runs:
         sys.exit("沒有抓到任何跑步紀錄，保留舊的資料不覆蓋。")
-    if unchanged(runs, os.environ["DATA_PASSWORD"]):
+    password = os.environ["DATA_PASSWORD"]
+    prev = load_previous(password) or {}
+    want_ai = bool(os.environ.get("DEEPSEEK_API_KEY"))
+    if prev.get("runs") == runs and (not want_ai or prev.get("analysis")):
         print("沒有新的跑步紀錄")
         return
+    analysis = prev.get("analysis")
+    if want_ai:
+        try:
+            from coach import analyze
+
+            analysis = analyze(runs)
+            print("已產生 AI 教練分析")
+        except Exception as e:
+            print(f"AI 分析失敗，沿用上一次的結果：{e}")
     updated = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    blob = encrypt({"updated": updated, "runs": runs}, os.environ["DATA_PASSWORD"])
+    payload = {"updated": updated, "runs": runs}
+    if analysis:
+        payload["analysis"] = analysis
+    blob = encrypt(payload, password)
     blob["updated"] = updated
     blob["count"] = len(runs)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
