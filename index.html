@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>跑步訓練看板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: control bar on top, KPI strip, then a two-column grid of chart panels that stacks on phones */
+:root{
+  --bg:#f3f5f7; --panel:#ffffff; --fg:#141a20; --muted:#5a6470; --line:#dde2e8; --grid:#e9edf1;
+  --s1:#2a78d6; --s2:#eb6834; --ok:#1d8048; --warn:#a86b00; --bad:#c3372c; --band:rgba(29,128,72,.10);
+  --z1:#86b6ef; --z2:#5598e7; --z3:#2a78d6; --z4:#1c5cab; --z5:#104281;
+  --chip:#e7ecf2;
+  --f-display:"Barlow Condensed","Noto Sans TC",system-ui,sans-serif;
+  --f-body:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;
+  --f-data:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1317; --panel:#171c22; --fg:#edf1f5; --muted:#9aa5b1; --line:#2a323b; --grid:#222a32;
+  --s1:#3987e5; --s2:#d95926; --ok:#43b874; --warn:#e0a43a; --bad:#ec6a5e; --band:rgba(67,184,116,.14);
+  --z1:#184f95; --z2:#256abf; --z3:#3987e5; --z4:#6da7ec; --z5:#9ec5f4; --chip:#222a33; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1317; --panel:#171c22; --fg:#edf1f5; --muted:#9aa5b1; --line:#2a323b; --grid:#222a32;
+  --s1:#3987e5; --s2:#d95926; --ok:#43b874; --warn:#e0a43a; --bad:#ec6a5e; --band:rgba(67,184,116,.14);
+  --z1:#184f95; --z2:#256abf; --z3:#3987e5; --z4:#6da7ec; --z5:#9ec5f4; --chip:#222a33; color-scheme:dark}
+[hidden]{display:none!important}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-family:var(--f-display);font-weight:700;font-size:34px;letter-spacing:.01em;margin:0;line-height:1.1;text-wrap:balance}
+.sub{color:var(--muted);margin:2px 0 0}
+.src{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:var(--chip);font-size:12.5px}
+.src.sample::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--warn)}
+.src.mine::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.controls{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.controls label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
+select,input[type=number]{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+input[type=number]{width:70px;font-family:var(--f-data)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;border:0;background:transparent;color:var(--muted);padding:5px 11px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--s1);color:#fff}
+.btn{font:inherit;font-size:13px;border:1px solid var(--s1);background:var(--s1);color:#fff;border-radius:7px;padding:6px 12px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--fg);border-color:var(--line)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
+.spacer{flex:1}
+.msg{font-size:13px;padding:8px 12px;border-radius:8px;background:var(--chip)}
+.msg.err{color:var(--bad)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi .k{color:var(--muted);font-size:12.5px;letter-spacing:.04em}
+.kpi .v{font-family:var(--f-display);font-weight:700;font-size:32px;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi .v small{font-size:16px;font-weight:600;color:var(--muted);margin-left:3px}
+.kpi .d{font-size:12px;color:var(--muted);font-family:var(--f-data)}
+.d .up{color:var(--ok)} .d .down{color:var(--bad)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.panel.wide{grid-column:1/-1}
+.ph{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 12px}
+h2{font-size:15px;margin:0;font-weight:700}
+.note{color:var(--muted);font-size:12.5px;margin:0}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.legend i.bar{height:10px;width:10px;border-radius:2px}
+.chart{width:100%;position:relative}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.ax{fill:var(--muted);font-family:var(--f-data);font-size:10.5px}
+.gl{stroke:var(--grid);stroke-width:1}
+.base{stroke:var(--line);stroke-width:1}
+.pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12.5px;font-weight:500;border:1px solid currentColor}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)} .pill.bad{color:var(--bad)} .pill.low{color:var(--muted)}
+.zones{display:flex;flex-direction:column;gap:9px}
+.zrow{display:grid;grid-template-columns:118px 1fr 120px;gap:10px;align-items:center;font-size:13px}
+.zrow .zl b{font-family:var(--f-data);font-weight:500}
+.zrow .zl span{display:block;color:var(--muted);font-size:11.5px;font-family:var(--f-data)}
+.ztrack{height:14px;background:var(--grid);border-radius:4px;overflow:hidden}
+.zbar{height:100%;border-radius:0 4px 4px 0}
+.zrow .zv{font-family:var(--f-data);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:460px){.zrow{grid-template-columns:96px 1fr 84px}}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
+td.n,th.n{text-align:right;font-family:var(--f-data)}
+.pbs{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.pb{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:1px}
+.pb .k{font-size:12px;color:var(--muted)}
+.pb .v{font-family:var(--f-display);font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.pb .m{font-size:11.5px;color:var(--muted);font-family:var(--f-data)}
+.how ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;max-width:78ch}
+.how li b{font-weight:700}
+code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1px 5px;border-radius:4px}
+#tip{position:fixed;z-index:20;pointer-events:none;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12.5px;box-shadow:0 4px 18px rgba(0,0,0,.14);max-width:240px}
+#tip .t{font-weight:700;margin-bottom:2px}
+#tip .r{font-family:var(--f-data);font-size:12px;color:var(--muted)}
+.drop{position:fixed;inset:0;z-index:30;background:rgba(42,120,214,.12);border:3px dashed var(--s1);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--s1)}
+@media (prefers-reduced-motion:no-preference){.zbar{transition:width .4s ease}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>跑步訓練看板</h1>
+      <p class="sub">匯入 Garmin Connect 的活動資料，看跑量、配速、心率區間與訓練負荷。資料只在你的瀏覽器裡處理，不會上傳。</p>
+    </div>
+    <span id="src" class="src sample">範例資料</span>
+  </header>
+
+  <div class="controls">
+    <span class="seg" id="range" role="group" aria-label="期間">
+      <button data-v="28">4 週</button><button data-v="84" aria-pressed="true">12 週</button><button data-v="182">半年</button><button data-v="365">1 年</button><button data-v="all">全部</button>
+    </span>
+    <label for="maxhr">最大心率 <input id="maxhr" type="number" min="120" max="230"></label>
+    <label for="resthr">安靜心率 <input id="resthr" type="number" min="30" max="100" value="55"></label>
+    <label for="unit">CSV 距離單位 <select id="unit"><option value="km">公里</option><option value="mi">英里</option></select></label>
+    <span class="spacer"></span>
+    <input id="file" type="file" hidden>
+    <button class="btn" id="pick">匯入 Garmin 檔案</button>
+    <button class="btn ghost" id="reset" hidden>改回範例資料</button>
+  </div>
+  <div id="msg" class="msg">目前顯示的是<b>範例資料</b>，不是你的紀錄。點「匯入 Garmin 檔案」或把 CSV 拖進頁面，就會換成你的數據（做法見最下方）。</div>
+
+  <section class="kpis" id="kpis" aria-label="期間摘要"></section>
+
+  <div class="grid">
+    <section class="panel wide">
+      <div class="ph"><h2>每週跑量</h2>
+        <div class="legend"><span><i class="bar" style="background:var(--s1)"></i>當週公里</span><span><i style="background:var(--s2)"></i>近 4 週平均</span></div></div>
+      <div class="chart" id="weekly"></div>
+    </section>
+
+    <section class="panel wide">
+      <div class="ph"><h2>訓練負荷（急慢性負荷比 ACWR）</h2><span id="acwrNow"></span></div>
+      <p class="note" id="loadNote"></p>
+      <div class="chart" id="acwr"></div>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h2>配速趨勢</h2>
+        <div class="legend"><span><i class="bar" style="background:var(--s1);border-radius:50%"></i>單次（點越大越長，越上方越快）</span><span><i style="background:var(--s2)"></i>近 8 次平均</span></div></div>
+      <div class="chart" id="pace"></div>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h2>心率區間分布</h2><span class="note" id="zoneBasis"></span></div>
+      <div class="zones" id="zones"></div>
+      <p class="note">依每次跑步的「平均心率」歸區、累計時間。要看每秒的區間時間需要 FIT 檔，這裡是近似值。</p>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h2>每月跑量</h2><span class="note">近 12 個月</span></div>
+      <div class="chart" id="monthly"></div>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h2>距離成績</h2><span class="note">期間內最快平均配速推估</span></div>
+      <div class="pbs" id="pbs"></div>
+      <p class="note">取距離達標的跑步中平均配速最快的一次，換算成該距離的完賽時間。不是 Garmin 的官方個人紀錄。</p>
+    </section>
+
+    <section class="panel wide">
+      <div class="ph"><h2>最近的跑步</h2><span class="note" id="tblNote"></span></div>
+      <div class="tbl"><table id="tbl"><thead><tr>
+        <th>日期</th><th>標題</th><th class="n">距離 km</th><th class="n">時間</th><th class="n">配速 /km</th><th class="n">平均心率</th><th class="n">步頻</th><th class="n">爬升 m</th><th class="n">有氧 TE</th>
+      </tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <section class="panel wide how">
+      <h2>怎麼把 Garmin 的資料拿出來</h2>
+      <ol>
+        <li><b>最快：活動清單匯出 CSV。</b>電腦開 connect.garmin.com → 左側「活動」→「所有活動」→ 篩選「跑步」→ 一直往下捲到你要的最早日期（只會匯出已載入的列）→ 右上角「匯出 CSV」。得到 <code>Activities.csv</code>，直接匯入這裡。中文或英文介面的欄位都認得。</li>
+        <li><b>只有手機時：</b>用手機瀏覽器（Safari 或 Chrome）開 connect.garmin.com 並登入，從選單切成「電腦版網站」，照上一步按「匯出 CSV」，檔案會存到「檔案」或「下載」。回到這頁按「匯入 Garmin 檔案」，選那個 CSV 就好。Garmin Connect App 本身沒有匯出功能。</li>
+        <li><b>完整歷史：帳戶資料匯出。</b>Garmin 帳戶 → 帳戶設定 →「資料管理」→「匯出您的資料」，幾天內會寄來 zip。解開後在 <code>DI_CONNECT/DI-Connect-Fitness/</code> 找 <code>*_summarizedActivities.json</code>，匯入這裡即可。</li>
+        <li><b>自動更新：非官方 Python 套件 <code>garminconnect</code>。</b>在你自己的電腦上執行，帳密只留在你的電腦，不要貼給任何人。可以定期把活動存成 CSV 再匯入。</li>
+      </ol>
+      <p class="note">匯入後資料會記在這個瀏覽器，下次打開還在；換電腦或清除瀏覽資料就需要重新匯入。</p>
+    </section>
+  </div>
+</div>
+<div id="tip" hidden></div>
+<div id="drop" class="drop" hidden>放開即可匯入</div>
+
+<script>
+(function(){
+const $=s=>document.querySelector(s);
+const NS='http://www.w3.org/2000/svg';
+const DAY=864e5;
+const STORE='garmin-run-dashboard.v1';
+const state={range:'84',maxHr:null,restHr:55,unit:'km'};
+let RUNS=[], SOURCE={sample:true,name:'範例資料'};
+
+/* ---------- formatting ---------- */
+const pad=n=>String(n).padStart(2,'0');
+const fmtPace=s=>{if(!isFinite(s)||s<=0)return'—';s=Math.round(s);return Math.floor(s/60)+':'+pad(s%60)};
+const fmtDur=s=>{if(!isFinite(s))return'—';s=Math.round(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?h+':'+pad(m)+':'+pad(s%60):m+':'+pad(s%60)};
+const fmtHours=s=>(s/3600).toFixed(s>=36000?0:1);
+const fmtDate=d=>d.getFullYear()+'/'+pad(d.getMonth()+1)+'/'+pad(d.getDate());
+const fmtMD=d=>(d.getMonth()+1)+'/'+d.getDate();
+const dayKey=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const startOfDay=d=>{const x=new Date(d);x.setHours(0,0,0,0);return x};
+const monday=d=>{const x=startOfDay(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
+
+/* ---------- sample data ---------- */
+function makeSample(){
+  let seed=11;const rnd=()=>{seed=(seed*16807)%2147483647;return(seed-1)/2147483646};
+  const out=[],end=startOfDay(new Date()),N=364;
+  for(let d=N;d>=0;d--){
+    const day=new Date(end.getTime()-d*DAY);day.setHours(6,30,0,0);
+    const dow=day.getDay(),prog=(N-d)/N;let dist,kind;
+    if(dow===0){dist=12+prog*9+rnd()*3;kind='長距離慢跑'}
+    else if(dow===2){dist=8+rnd()*2;kind='間歇 6×800m'}
+    else if(dow===4){dist=7+prog*3+rnd()*2;kind='節奏跑'}
+    else if(dow===6&&rnd()>.3){dist=5+rnd()*3;kind='恢復跑'}
+    else continue;
+    if(rnd()<.08)continue;
+    if(Math.floor(d/7)%4===0)dist*=.7;
+    const off={'長距離慢跑':22,'恢復跑':38,'間歇 6×800m':-22,'節奏跑':-14}[kind];
+    const pace=342-prog*22+off+(rnd()-.5)*14;
+    const hrOff={'長距離慢跑':-2,'恢復跑':-13,'間歇 6×800m':13,'節奏跑':9}[kind];
+    const hr=Math.round(141+hrOff-prog*3+(rnd()-.5)*6);
+    out.push({date:new Date(day.getTime()+rnd()*36e5),title:kind,dist:+dist.toFixed(2),secs:Math.round(dist*pace),
+      avgHr:hr,maxHr:hr+22+Math.round(rnd()*10),cad:Math.round(171-(pace-330)/8+(rnd()-.5)*6),
+      ascent:Math.round(dist*(4+rnd()*12)),te:+Math.min(5,2.4+(hr-130)/11+rnd()*.5).toFixed(1),tss:null});
+  }
+  return out;
+}
+
+/* ---------- parsing ---------- */
+function decodeBuf(buf){
+  const b=new Uint8Array(buf);
+  if(b[0]===0xFF&&b[1]===0xFE)return new TextDecoder('utf-16le').decode(b);
+  if(b[0]===0xFE&&b[1]===0xFF)return new TextDecoder('utf-16be').decode(b);
+  try{return new TextDecoder('utf-8',{fatal:true}).decode(b)}catch(e){}
+  for(const enc of ['big5','gb18030']){try{return new TextDecoder(enc,{fatal:true}).decode(b)}catch(e){}}
+  return new TextDecoder('utf-8').decode(b);
+}
+function parseCSV(text){
+  text=text.replace(/^\uFEFF/,'');
+  const first=text.slice(0,text.search(/\r?\n/)>0?text.search(/\r?\n/):text.length);
+  const cnt=ch=>first.split(ch).length;
+  const sep=cnt('\t')>cnt(',')&&cnt('\t')>cnt(';')?'\t':cnt(';')>cnt(',')?';':',';
+  const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;
+    else if(c===sep){row.push(f);f=''}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(f);rows.push(row);row=[];f=''}
+    else f+=c}
+  if(f!==''||row.length){row.push(f);rows.push(row)}
+  return rows.filter(r=>r.some(x=>x.trim()!==''));
+}
+const ALIASES={
+  type:['activity type','活動類型','活动类型','活動類別'],
+  date:['date','日期','開始時間','开始时间'],
+  title:['title','標題','标题','名稱','名称'],
+  dist:['distance','距離','距离'],
+  time:['time','時間','时间','moving time','移動時間','移动时间','elapsed time','經過時間','总时间','總時間'],
+  avgHr:['avg hr','平均心率'],
+  maxHr:['max hr','最大心率'],
+  te:['aerobic te','有氧訓練效果','有氧训练效果'],
+  cad:['avg run cadence','平均跑步步頻','平均跑步步频','平均步頻','平均步频'],
+  ascent:['total ascent','總爬升','总爬升','總上升','总上升'],
+  tss:['training stress score','訓練壓力分數','训练压力分数']
+};
+const norm=h=>h.replace(/^﻿/,'').replace(/[®™]/g,'').trim().toLowerCase();
+function mapHeaders(headers){
+  const H=headers.map(norm),m={};
+  for(const k in ALIASES){
+    let idx=-1;
+    for(const a of ALIASES[k]){idx=H.indexOf(a);if(idx>=0)break}
+    if(idx<0)for(const a of ALIASES[k]){idx=H.findIndex(h=>h.startsWith(a));if(idx>=0)break}
+    if(idx>=0)m[k]=idx;
+  }
+  return m;
+}
+const num=s=>{if(s==null)return null;s=String(s).replace(/,/g,'').trim();if(!s||s==='--')return null;const v=parseFloat(s);return isFinite(v)?v:null};
+const dur=s=>{if(s==null)return null;s=String(s).trim();if(!s||s==='--')return null;const p=s.split(':').map(Number);if(p.some(isNaN))return null;return p.reduce((t,x)=>t*60+x,0)};
+const parseDate=s=>{s=String(s||'').trim();let d=new Date(s.replace(/\//g,'-').replace(' ','T'));if(isNaN(d))d=new Date(s);return isNaN(d)?null:d};
+const isRun=t=>!t||/run|跑/i.test(t);
+
+function fromCSV(text){
+  const rows=parseCSV(text);if(rows.length<2)throw new Error('檔案裡沒有資料列。');
+  const m=mapHeaders(rows[0]);
+  if(m.date==null||m.dist==null||m.time==null)
+    throw new Error('找不到日期、距離或時間欄位。這個檔案的欄位是：'+rows[0].slice(0,12).join('、')+'。請確認是 Garmin Connect「所有活動」頁匯出的 CSV。');
+  const k=state.unit==='mi'?1.609344:1,out=[];
+  for(const r of rows.slice(1)){
+    const type=m.type!=null?r[m.type]:'';if(!isRun(type))continue;
+    const date=parseDate(r[m.date]),dist=num(r[m.dist]),secs=dur(r[m.time]);
+    if(!date||!dist||!secs)continue;
+    out.push({date,title:(m.title!=null&&r[m.title])||type||'跑步',dist:dist*k,secs,
+      avgHr:m.avgHr!=null?num(r[m.avgHr]):null,maxHr:m.maxHr!=null?num(r[m.maxHr]):null,
+      cad:m.cad!=null?num(r[m.cad]):null,ascent:m.ascent!=null?num(r[m.ascent]):null,
+      te:m.te!=null?num(r[m.te]):null,tss:m.tss!=null?num(r[m.tss]):null});
+  }
+  return out;
+}
+function fromJSON(text){
+  let j=JSON.parse(text),list=[];
+  const walk=x=>{if(Array.isArray(x))x.forEach(walk);else if(x&&typeof x==='object'){if(x.summarizedActivitiesExport)walk(x.summarizedActivitiesExport);else if('activityType' in x||'startTimeLocal' in x)list.push(x)}};
+  walk(j);
+  if(!list.length)throw new Error('JSON 裡找不到活動。請用帳戶資料匯出中的 summarizedActivities.json。');
+  const out=[];
+  for(const a of list){
+    const type=typeof a.activityType==='string'?a.activityType:(a.activityType&&a.activityType.typeKey)||a.sportType||'';
+    if(!isRun(type))continue;
+    const t=a.startTimeLocal??a.beginTimestamp??a.startTimeGmt;
+    const date=typeof t==='number'?new Date(t):parseDate(t);
+    const dist=(a.distance||0)/1e5,secs=(a.movingDuration||a.duration||0)/1e3;
+    if(!date||isNaN(date)||!dist||!secs)continue;
+    out.push({date,title:a.name||'跑步',dist,secs,avgHr:a.avgHr??null,maxHr:a.maxHr??null,
+      cad:a.avgDoubleCadence?Math.round(a.avgDoubleCadence):null,ascent:a.elevationGain!=null?Math.round(a.elevationGain/100):null,
+      te:a.aerobicTrainingEffect!=null?+(+a.aerobicTrainingEffect).toFixed(1):null,tss:a.trainingStressScore??null});
+  }
+  return out;
+}
+
+/* ---------- derived metrics ---------- */
+const autoMax=()=>{const v=RUNS.map(r=>r.maxHr).filter(Boolean).sort((a,b)=>b-a);return v.length?Math.round(v[Math.min(1,v.length-1)]):190};
+const maxHr=()=>state.maxHr||autoMax();
+function loadOf(r){
+  if(r.tss)return{v:r.tss,m:'tss'};
+  const mx=maxHr(),rest=state.restHr;
+  if(r.avgHr&&mx>rest){const x=Math.max(0,Math.min(1,(r.avgHr-rest)/(mx-rest)));return{v:r.secs/60*x*.64*Math.exp(1.92*x),m:'trimp'}}
+  return{v:r.secs/60*.6,m:'time'};
+}
+function windowRuns(days,endOffset=0){
+  const end=startOfDay(new Date()).getTime()+DAY-endOffset*DAY;
+  if(days==='all')return RUNS.slice();
+  const start=end-(+days)*DAY;
+  return RUNS.filter(r=>r.date.getTime()>=start&&r.date.getTime()<end);
+}
+const sum=(a,f)=>a.reduce((s,x)=>s+(f(x)||0),0);
+const hrAvg=a=>{const w=a.filter(r=>r.avgHr);const t=sum(w,r=>r.secs);return t?sum(w,r=>r.avgHr*r.secs)/t:null};
+
+/* ---------- tooltip ---------- */
+const tip=$('#tip');
+function showTip(e,title,lines){
+  tip.replaceChildren();const t=document.createElement('div');t.className='t';t.textContent=title;tip.append(t);
+  for(const l of lines){const d=document.createElement('div');d.className='r';d.textContent=l;tip.append(d)}
+  tip.hidden=false;const pt=e.touches?e.touches[0]:e;
+  const w=tip.offsetWidth,h=tip.offsetHeight;
+  let x=pt.clientX+14,y=pt.clientY-h-12;
+  if(x+w>innerWidth-8)x=pt.clientX-w-14;if(x<8)x=8;if(y<8)y=pt.clientY+16;
+  tip.style.left=x+'px';tip.style.top=y+'px';
+}
+const hideTip=()=>{tip.hidden=true};
+
+/* ---------- svg helpers ---------- */
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
+function niceStep(raw){if(raw<=0)return 1;const p=10**Math.floor(Math.log10(raw)),n=raw/p;return(n<=1?1:n<=2?2:n<=5?5:10)*p}
+function yAxis(svg,maxV,{l,r,t,b,W,H},fmt=v=>v){
+  const step=niceStep(maxV/4),max=Math.ceil(maxV/step)*step||step,ih=H-t-b,y=v=>t+ih-(v/max)*ih;
+  for(let v=0;v<=max+1e-9;v+=step){
+    el('line',{x1:l,x2:W-r,y1:y(v),y2:y(v),class:v===0?'base':'gl'},svg);
+    el('text',{x:l-6,y:y(v)+3.5,'text-anchor':'end',class:'ax'},svg).textContent=fmt(v);
+  }
+  return{y,max};
+}
+function frame(box,H){box.replaceChildren();const W=Math.max(280,box.clientWidth);const svg=el('svg',{viewBox:`0 0 ${W} ${H}`,width:'100%',role:'img'},box);return{svg,W,H}}
+function barPath(x,y0,w,y1){const h=y0-y1,rr=Math.min(4,w/2,h);if(h<=0)return'';return`M${x},${y0}V${y1+rr}Q${x},${y1} ${x+rr},${y1}H${x+w-rr}Q${x+w},${y1} ${x+w},${y1+rr}V${y0}Z`}
+
+function barChart(box,items,{H=230,line=null,fmtY=v=>v,every=1,tipFn,color='var(--s1)'}){
+  const {svg,W}=frame(box,H),m={l:38,r:10,t:12,b:26,W,H};
+  const maxV=Math.max(1,...items.map(d=>d.v),...(line||[]).map(v=>v||0));
+  const {y}=yAxis(svg,maxV,m,fmtY);
+  const iw=W-m.l-m.r,bw=iw/items.length,gap=Math.max(2,bw*.25),y0=y(0);
+  items.forEach((d,i)=>{
+    const x=m.l+i*bw+gap/2,w=bw-gap;
+    if(d.v>0)el('path',{d:barPath(x,y0,w,y(d.v)),fill:color},svg);
+    if(i%every===0)el('text',{x:x+w/2,y:H-8,'text-anchor':'middle',class:'ax'},svg).textContent=d.label;
+    const hit=el('rect',{x:m.l+i*bw,y:m.t,width:bw,height:H-m.t-m.b,fill:'transparent'},svg);
+    const on=e=>{const t=tipFn(d,i);showTip(e,t[0],t.slice(1))};
+    hit.addEventListener('pointermove',on);hit.addEventListener('pointerleave',hideTip);
+  });
+  if(line){
+    const pts=line.map((v,i)=>v==null?null:[m.l+i*bw+bw/2,y(v)]).filter(Boolean);
+    if(pts.length>1)el('polyline',{points:pts.map(p=>p.join(',')).join(' '),fill:'none',stroke:'var(--s2)','stroke-width':2,'stroke-linejoin':'round','pointer-events':'none'},svg);
+  }
+}
+
+/* ---------- renderers ---------- */
+function renderKPIs(cur,prev){
+  const dist=sum(cur,r=>r.dist),secs=sum(cur,r=>r.secs),hr=hrAvg(cur),long=Math.max(0,...cur.map(r=>r.dist));
+  const pd=sum(prev,r=>r.dist),ps=sum(prev,r=>r.secs);
+  const delta=(a,b,inv)=>{if(state.range==='all'||!b)return'';const p=(a-b)/b*100;const good=inv?p<0:p>0;return`<span class="${Math.abs(p)<.5?'':good?'up':'down'}">${p>0?'▲':p<0?'▼':''}${Math.abs(p).toFixed(0)}%</span> vs 前期`};
+  const pace=dist?secs/dist:NaN,ppace=pd?ps/pd:NaN;
+  const paceD=(state.range==='all'||!isFinite(ppace)||!isFinite(pace))?'':(()=>{const s=Math.round(ppace-pace);return`<span class="${s>0?'up':s<0?'down':''}">${s>0?'快 ':s<0?'慢 ':''}${Math.abs(s)} 秒</span> vs 前期`})();
+  const k=[
+    ['總跑量',dist.toFixed(1),'km',delta(dist,pd)],
+    ['跑步次數',cur.length,'次',delta(cur.length,prev.length)],
+    ['總時間',fmtHours(secs),'小時',delta(secs,ps)],
+    ['平均配速',fmtPace(pace),'/km',paceD],
+    ['平均心率',hr?Math.round(hr):'—','bpm','時間加權'],
+    ['最長一次',long.toFixed(1),'km',cur.length?'期間內':'']
+  ];
+  $('#kpis').innerHTML=k.map(([a,b,c,d])=>`<div class="kpi"><span class="k">${a}</span><span class="v">${b}<small>${c}</small></span><span class="d">${d||'&nbsp;'}</span></div>`).join('');
+}
+
+function renderWeekly(){
+  const now=monday(new Date());
+  let weeks=state.range==='all'?(RUNS.length?Math.ceil((now-monday(RUNS[0].date))/(7*DAY))+1:12):Math.max(8,Math.ceil(+state.range/7));
+  const start=now.getTime()-(weeks-1)*7*DAY,map={};
+  for(const r of RUNS){const k=monday(r.date).getTime();(map[k]=map[k]||[]).push(r)}
+  const all=[];for(let t=start-3*7*DAY;t<=now.getTime();t+=7*DAY){const w=new Date(t);w.setHours(0,0,0,0);const rs=map[monday(w).getTime()]||[];all.push({t:w,v:sum(rs,r=>r.dist),n:rs.length,s:sum(rs,r=>r.secs)})}
+  const items=all.slice(3).map(d=>({...d,label:fmtMD(d.t)}));
+  const roll=all.map((d,i)=>i<3?null:(all[i].v+all[i-1].v+all[i-2].v+all[i-3].v)/4).slice(3);
+  const every=Math.ceil(items.length/(($('#weekly').clientWidth||600)/52));
+  barChart($('#weekly'),items,{line:roll,every,fmtY:v=>v,tipFn:(d,i)=>[`${fmtDate(d.t)} 那週`,`${d.v.toFixed(1)} km · ${d.n} 次`,`時間 ${fmtDur(d.s)}`,`近 4 週平均 ${roll[i].toFixed(1)} km`]});
+}
+
+function renderMonthly(){
+  const now=new Date(),items=[];
+  for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);const rs=RUNS.filter(r=>r.date.getFullYear()===d.getFullYear()&&r.date.getMonth()===d.getMonth());items.push({t:d,v:sum(rs,r=>r.dist),n:rs.length,label:(d.getMonth()+1)+'月'})}
+  const every=($('#monthly').clientWidth||400)<420?2:1;
+  barChart($('#monthly'),items,{H:200,every,tipFn:d=>[`${d.t.getFullYear()} 年 ${d.t.getMonth()+1} 月`,`${d.v.toFixed(1)} km · ${d.n} 次`]});
+}
+
+function renderACWR(){
+  const box=$('#acwr');
+  const days=state.range==='all'?(RUNS.length?Math.ceil((Date.now()-RUNS[0].date)/DAY):84):Math.max(56,+state.range);
+  const today=startOfDay(new Date()).getTime(),daily={};const methods={};
+  for(const r of RUNS){const L=loadOf(r);methods[L.m]=(methods[L.m]||0)+1;const k=startOfDay(r.date).getTime();daily[k]=(daily[k]||0)+L.v}
+  const series=[];
+  for(let i=days-1;i>=0;i--){const t=today-i*DAY;let a=0,c=0;for(let j=0;j<28;j++){const v=daily[t-j*DAY]||0;if(j<7)a+=v;c+=v}
+    const first=RUNS.length?startOfDay(RUNS[0].date).getTime():t;series.push({t:new Date(t),a,c:c/4,r:(t-first>=27*DAY&&c>0)?a/(c/4):null})}
+  const used=methods.tss?'Garmin 訓練壓力分數（TSS）':methods.trimp?'心率 TRIMP（時間 × 心率強度，依你設定的最大與安靜心率）':'跑步時間';
+  $('#loadNote').textContent=`近 7 天負荷 ÷ 近 28 天週平均負荷。0.8–1.3 是常見的安全區間，持續高於 1.5 代表加量太快、受傷風險上升。負荷計算方式：${used}。`;
+  const last=[...series].reverse().find(d=>d.r!=null);
+  const st=!last?['low','資料不足']:last.r<.8?['low','偏低 · 可能退步']:last.r<=1.3?['ok','適中']:last.r<=1.5?['warn','偏高 · 注意']:['bad','過高 · 受傷風險'];
+  $('#acwrNow').innerHTML=last?`<span class="pill ${st[0]}">目前 ${last.r.toFixed(2)} · ${st[1]}</span>`:`<span class="pill low">${st[1]}</span>`;
+  const H=210,{svg,W}=frame(box,H),m={l:38,r:10,t:12,b:26,W,H};
+  const maxV=Math.max(2,...series.map(d=>d.r||0));
+  const {y}=yAxis(svg,maxV,m,v=>v.toFixed(1));
+  const iw=W-m.l-m.r,x=i=>m.l+(series.length<2?0:i/(series.length-1)*iw);
+  el('rect',{x:m.l,y:y(1.3),width:iw,height:y(.8)-y(1.3),fill:'var(--band)'},svg);
+  el('line',{x1:m.l,x2:W-m.r,y1:y(1.5),y2:y(1.5),stroke:'var(--bad)','stroke-dasharray':'4 4','stroke-width':1,opacity:.7},svg);
+  el('text',{x:W-m.r-2,y:y(1.5)-4,'text-anchor':'end',class:'ax'},svg).textContent='1.5';
+  el('text',{x:m.l+4,y:y(1.3)+12,class:'ax'},svg).textContent='安全區 0.8–1.3';
+  let d='';series.forEach((p,i)=>{if(p.r==null)return;d+=(d&&series[i-1]&&series[i-1].r!=null?'L':'M')+x(i).toFixed(1)+','+y(p.r).toFixed(1)});
+  el('path',{d,fill:'none',stroke:'var(--s1)','stroke-width':2,'stroke-linejoin':'round'},svg);
+  const nTicks=Math.max(2,Math.floor(iw/80));for(let k=0;k<=nTicks;k++){const i=Math.round(k/nTicks*(series.length-1));el('text',{x:x(i),y:H-8,'text-anchor':k===0?'start':k===nTicks?'end':'middle',class:'ax'},svg).textContent=fmtMD(series[i].t)}
+  const vline=el('line',{y1:m.t,y2:H-m.b,stroke:'var(--muted)','stroke-width':1,opacity:0},svg);
+  const dot=el('circle',{r:4.5,fill:'var(--s1)',stroke:'var(--panel)','stroke-width':2,opacity:0},svg);
+  const hit=el('rect',{x:m.l,y:m.t,width:iw,height:H-m.t-m.b,fill:'transparent'},svg);
+  hit.addEventListener('pointermove',e=>{const b=svg.getBoundingClientRect();const px=(e.clientX-b.left)*W/b.width;const i=Math.max(0,Math.min(series.length-1,Math.round((px-m.l)/iw*(series.length-1))));const p=series[i];
+    vline.setAttribute('x1',x(i));vline.setAttribute('x2',x(i));vline.setAttribute('opacity',.5);
+    if(p.r!=null){dot.setAttribute('cx',x(i));dot.setAttribute('cy',y(p.r));dot.setAttribute('opacity',1)}else dot.setAttribute('opacity',0);
+    showTip(e,fmtDate(p.t),[p.r!=null?`ACWR ${p.r.toFixed(2)}`:'ACWR 資料不足',`近 7 天負荷 ${Math.round(p.a)}`,`28 天週均 ${Math.round(p.c)}`])});
+  hit.addEventListener('pointerleave',()=>{hideTip();vline.setAttribute('opacity',0);dot.setAttribute('opacity',0)});
+}
+
+function renderPace(cur){
+  const box=$('#pace'),H=230,{svg,W}=frame(box,H),m={l:44,r:10,t:12,b:26};
+  const rs=cur.filter(r=>r.dist>=1).sort((a,b)=>a.date-b.date);
+  if(!rs.length){el('text',{x:W/2,y:H/2,'text-anchor':'middle',class:'ax'},svg).textContent='這段期間沒有跑步';return}
+  const paces=rs.map(r=>r.secs/r.dist);const lo=Math.floor((Math.min(...paces)-10)/30)*30,hi=Math.ceil((Math.max(...paces)+10)/30)*30;
+  const ih=H-m.t-m.b,iw=W-m.l-m.r,y=p=>m.t+(p-lo)/(hi-lo)*ih;
+  const t0=rs[0].date.getTime(),t1=Math.max(t0+DAY,rs[rs.length-1].date.getTime()),x=t=>m.l+(t-t0)/(t1-t0)*iw;
+  const step=(hi-lo)/30>8?60:30;
+  for(let p=lo;p<=hi;p+=step){el('line',{x1:m.l,x2:W-m.r,y1:y(p),y2:y(p),class:'gl'},svg);el('text',{x:m.l-6,y:y(p)+3.5,'text-anchor':'end',class:'ax'},svg).textContent=fmtPace(p)}
+  const maxD=Math.max(...rs.map(r=>r.dist));
+  rs.forEach((r,i)=>{const cx=x(r.date.getTime()),cy=y(paces[i]),rad=3+5*Math.sqrt(r.dist/maxD);
+    el('circle',{cx,cy,r:rad,fill:'var(--s1)','fill-opacity':.55,stroke:'var(--panel)','stroke-width':1.5},svg);
+    const h=el('circle',{cx,cy,r:rad+5,fill:'transparent'},svg);
+    h.addEventListener('pointermove',e=>showTip(e,`${fmtDate(r.date)} ${r.title}`,[`${r.dist.toFixed(2)} km · ${fmtDur(r.secs)}`,`配速 ${fmtPace(paces[i])} /km`,r.avgHr?`平均心率 ${Math.round(r.avgHr)}`:'']));
+    h.addEventListener('pointerleave',hideTip)});
+  const pts=[];for(let i=0;i<rs.length;i++){const s=rs.slice(Math.max(0,i-7),i+1);const p=sum(s,r=>r.secs)/sum(s,r=>r.dist);pts.push(x(rs[i].date.getTime()).toFixed(1)+','+y(p).toFixed(1))}
+  if(pts.length>1)el('polyline',{points:pts.join(' '),fill:'none',stroke:'var(--s2)','stroke-width':2,'pointer-events':'none'},svg);
+  const n=Math.max(2,Math.floor(iw/90));for(let k=0;k<=n;k++){const t=t0+(t1-t0)*k/n;el('text',{x:x(t),y:H-8,'text-anchor':k===0?'start':k===n?'end':'middle',class:'ax'},svg).textContent=fmtMD(new Date(t))}
+}
+
+function renderZones(cur){
+  const mx=maxHr();
+  $('#zoneBasis').textContent=`最大心率 ${mx}${state.maxHr?'（自訂）':'（取資料中最高值）'}`;
+  const Z=[['Z1','熱身',.5,.6],['Z2','輕鬆',.6,.7],['Z3','有氧',.7,.8],['Z4','閾值',.8,.9],['Z5','最大',.9,1.1]];
+  const acc=Z.map(()=>({s:0,n:0}));let total=0;
+  for(const r of cur){if(!r.avgHr)continue;const p=r.avgHr/mx;let i=Z.findIndex(z=>p<z[3]);if(i<0)i=4;acc[i].s+=r.secs;acc[i].n++;total+=r.secs}
+  if(!total){$('#zones').innerHTML='<p class="note">這段期間的跑步沒有心率資料。</p>';return}
+  $('#zones').innerHTML=Z.map((z,i)=>{const pct=acc[i].s/total*100;return`<div class="zrow"><div class="zl"><b>${z[0]}</b> ${z[1]}<span>${Math.round(mx*z[2])}${i<4?'–'+(Math.round(mx*z[3])-1):'+'} bpm</span></div><div class="ztrack"><div class="zbar" style="width:${pct.toFixed(1)}%;background:var(--z${i+1})"></div></div><div class="zv">${pct.toFixed(0)}% · ${fmtHours(acc[i].s)}h · ${acc[i].n}次</div></div>`}).join('');
+}
+
+function renderPBs(cur){
+  const D=[['5K',5],['10K',10],['半馬',21.0975],['全馬',42.195]];
+  $('#pbs').innerHTML=D.map(([n,km])=>{const c=cur.filter(r=>r.dist>=km*.98);if(!c.length)return`<div class="pb"><span class="k">${n}</span><span class="v">—</span><span class="m">期間內沒有這麼長的跑步</span></div>`;
+    const b=c.reduce((a,r)=>r.secs/r.dist<a.secs/a.dist?r:a);const p=b.secs/b.dist;
+    return`<div class="pb"><span class="k">${n}</span><span class="v">${fmtDur(p*km)}</span><span class="m">${fmtPace(p)}/km · ${fmtMD(b.date)} ${b.dist.toFixed(1)}km</span></div>`}).join('');
+}
+
+function renderTable(cur){
+  const rs=cur.slice().sort((a,b)=>b.date-a.date).slice(0,20),tb=$('#tbl tbody');tb.replaceChildren();
+  $('#tblNote').textContent=`顯示 ${rs.length} / ${cur.length} 筆`;
+  for(const r of rs){const tr=document.createElement('tr');
+    const cells=[[fmtDate(r.date),''],[r.title,''],[r.dist.toFixed(2),'n'],[fmtDur(r.secs),'n'],[fmtPace(r.secs/r.dist),'n'],[r.avgHr?Math.round(r.avgHr):'—','n'],[r.cad?Math.round(r.cad):'—','n'],[r.ascent!=null?Math.round(r.ascent):'—','n'],[r.te!=null?r.te:'—','n']];
+    for(const [v,c] of cells){const td=document.createElement('td');td.textContent=v;if(c)td.className=c;tr.append(td)}tb.append(tr)}
+}
+
+function render(){
+  RUNS.sort((a,b)=>a.date-b.date);
+  const cur=windowRuns(state.range),prev=state.range==='all'?[]:windowRuns(state.range,+state.range);
+  renderKPIs(cur,prev);renderWeekly();renderACWR();renderPace(cur);renderZones(cur);renderMonthly();renderPBs(cur);renderTable(cur);
+  const s=$('#src');s.className='src '+(SOURCE.sample?'sample':'mine');s.textContent=SOURCE.sample?'範例資料':`${SOURCE.name} · ${RUNS.length} 次跑步`;
+  $('#reset').hidden=SOURCE.sample;
+  $('#maxhr').placeholder=autoMax();
+}
+
+/* ---------- storage ---------- */
+function save(){try{localStorage.setItem(STORE,JSON.stringify({name:SOURCE.name,runs:RUNS.map(r=>({...r,date:r.date.toISOString()})),settings:{maxHr:state.maxHr,restHr:state.restHr,unit:state.unit,range:state.range}}))}catch(e){}}
+function restore(){try{const j=JSON.parse(localStorage.getItem(STORE)||'null');if(!j)return false;Object.assign(state,j.settings||{});
+  if(j.runs&&j.runs.length){RUNS=j.runs.map(r=>({...r,date:new Date(r.date)}));SOURCE={sample:false,name:j.name||'我的資料'};return true}}catch(e){}return false}
+function saveSettings(){try{const j=JSON.parse(localStorage.getItem(STORE)||'{}');j.settings={maxHr:state.maxHr,restHr:state.restHr,unit:state.unit,range:state.range};localStorage.setItem(STORE,JSON.stringify(j))}catch(e){}}
+
+/* ---------- import ---------- */
+const msg=(html,err)=>{const m=$('#msg');m.hidden=false;m.className='msg'+(err?' err':'');m.innerHTML=html};
+function importFile(f){
+  const rd=new FileReader();
+  rd.onload=()=>{try{const text=decodeBuf(rd.result);const runs=/\.json$/i.test(f.name)||/^\s*[\[{]/.test(text)?fromJSON(text):fromCSV(text);
+      if(!runs.length)throw new Error('檔案讀到了，但裡面沒有跑步活動。');
+      RUNS=runs;SOURCE={sample:false,name:f.name};
+      const span=Math.round((Math.max(...runs.map(r=>r.date))-Math.min(...runs.map(r=>r.date)))/DAY);
+      msg(`已匯入 <b>${runs.length}</b> 次跑步，涵蓋 ${span} 天。資料存在這個瀏覽器，下次打開還在。`);
+      if(span>+state.range&&state.range!=='all'&&span>180)setRange('365');else render();save();
+    }catch(e){msg('匯入失敗：'+e.message.replace(/</g,'&lt;'),true)}};
+  rd.readAsArrayBuffer(f);
+}
+$('#pick').onclick=()=>$('#file').click();
+$('#file').onchange=e=>{const f=e.target.files[0];if(f)importFile(f);e.target.value=''};
+$('#reset').onclick=()=>{try{localStorage.removeItem(STORE)}catch(e){}RUNS=makeSample();SOURCE={sample:true,name:'範例資料'};msg('已改回<b>範例資料</b>。你匯入的資料已從這個瀏覽器清除。');render()};
+let dragN=0;const drop=$('#drop');
+addEventListener('dragenter',e=>{if([...e.dataTransfer.types].includes('Files')){dragN++;drop.hidden=false}});
+addEventListener('dragleave',()=>{if(--dragN<=0){dragN=0;drop.hidden=true}});
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('drop',e=>{e.preventDefault();dragN=0;drop.hidden=true;const f=e.dataTransfer.files[0];if(f)importFile(f)});
+
+/* ---------- controls ---------- */
+function setRange(v){state.range=v;document.querySelectorAll('#range button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===v));saveSettings();render()}
+document.querySelectorAll('#range button').forEach(b=>b.onclick=()=>setRange(b.dataset.v));
+$('#maxhr').oninput=e=>{const v=+e.target.value;state.maxHr=v>=120&&v<=230?v:null;saveSettings();render()};
+$('#resthr').oninput=e=>{const v=+e.target.value;if(v>=30&&v<=100){state.restHr=v;saveSettings();render()}};
+$('#unit').onchange=e=>{state.unit=e.target.value;saveSettings();if(!SOURCE.sample)msg('單位已更新。請重新匯入 CSV，新的單位才會套用。')};
+let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(render,150)});
+addEventListener('scroll',hideTip,{passive:true});
+
+/* ---------- boot ---------- */
+if(restore()){$('#msg').innerHTML=`已載入你上次匯入的 <b>${RUNS.length}</b> 次跑步（${SOURCE.name.replace(/</g,'&lt;')}）。`}
+else RUNS=makeSample();
+if(state.maxHr)$('#maxhr').value=state.maxHr;$('#resthr').value=state.restHr;$('#unit').value=state.unit;
+document.querySelectorAll('#range button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===state.range));
+render();
+})();
+</script>
+</body>
+</html>
