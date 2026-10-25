@@ -541,7 +541,7 @@ function renderZones(cur){
 }
 
 function renderPBs(cur){
-  const D=[['5K',5],['10K',10],['半馬',21.0975],['全馬',42.195]];
+  const D=[['3K',3],['5K',5],['10K',10],['半馬',21.0975],['全馬',42.195]];
   $('#pbs').innerHTML=D.map(([n,km])=>{const c=cur.filter(r=>r.dist>=km*.98);if(!c.length)return`<div class="pb"><span class="k">${n}</span><span class="v">—</span><span class="m">期間內沒有這麼長的跑步</span></div>`;
     const b=c.reduce((a,r)=>r.secs/r.dist<a.secs/a.dist?r:a);const p=b.secs/b.dist;
     return`<div class="pb"><span class="k">${n}</span><span class="v">${fmtDur(p*km)}</span><span class="m">${fmtPace(p)}/km · ${fmtMD(b.date)} ${b.dist.toFixed(1)}km</span></div>`}).join('');
