@@ -454,7 +454,7 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
         <p class="status-txt" id="fSum"></p>
       </div>
       <div class="tbl"><table id="tbl"><thead><tr>
-        <th>日期</th><th>標題</th><th class="n">距離 km</th><th class="n">時間</th><th class="n">配速 /km</th><th class="n">平均心率</th><th class="n">步頻</th><th class="n">爬升 m</th><th class="n">有氧 TE</th>
+        <th>日期</th><th>標題</th><th class="n">距離 km</th><th class="n">時間</th><th class="n">配速 /km</th><th class="n">平均心率</th><th class="n">步頻</th><th class="n">爬升 m</th>
       </tr></thead><tbody></tbody></table></div>
       <button class="btn ghost" type="button" id="tblMore" hidden>顯示更多</button>
     </section>
@@ -923,7 +923,7 @@ function renderTable(){
   $('#fSum').textContent=allr.length?`${on?'符合條件':'全部'} ${allr.length} 次 · ${km.toFixed(1)} km · 平均配速 ${fmtPace(sc/km)}/km${hrs.length?` · 平均心率 ${Math.round(meanOf(hrs.map(r=>r.avgHr)))}`:''}`:'沒有符合條件的跑步，試著放寬配速範圍。';
   $('#tblNote').textContent=`顯示 ${rs.length} / ${allr.length} 筆 · 點一列看明細`;$('#tblMore').hidden=rs.length>=allr.length;
   for(const r of rs){const tr=document.createElement('tr');
-    const cells=[[fmtDate(r.date),''],[r.title,''],[r.dist.toFixed(2),'n'],[fmtDur(r.secs),'n'],[fmtPace(r.secs/r.dist),'n'],[r.avgHr?Math.round(r.avgHr):'—','n'],[r.cad?Math.round(r.cad):'—','n'],[r.ascent!=null?Math.round(r.ascent):'—','n'],[r.te!=null?r.te:'—','n']];
+    const cells=[[fmtDate(r.date),''],[r.title,''],[r.dist.toFixed(2),'n'],[fmtDur(r.secs),'n'],[fmtPace(r.secs/r.dist),'n'],[r.avgHr?Math.round(r.avgHr):'—','n'],[r.cad?Math.round(r.cad):'—','n'],[r.ascent!=null?Math.round(r.ascent):'—','n']];
     for(const [v,c] of cells){const td=document.createElement('td');td.textContent=v;if(c)td.className=c;tr.append(td)}
     tr.className='tap';tr.onclick=()=>openRun(r);tb.append(tr)}
 }
