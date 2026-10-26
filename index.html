@@ -184,6 +184,20 @@ td.best{color:var(--ok);font-weight:700}
 .card.tap{cursor:pointer}
 .chev{color:var(--muted);font-size:12.5px}
 
+/* records */
+button.pb{border:0;font:inherit;color:inherit;text-align:left;cursor:pointer;position:relative}
+button.pb[aria-expanded="true"]{outline:2px solid var(--s1);outline-offset:-2px}
+button.pb:disabled{cursor:default}
+.top3{display:flex;flex-direction:column;background:var(--panel-2);border-radius:12px;padding:4px 12px}
+.top3 h4{margin:8px 0 2px;font-size:13px;color:var(--muted);font-weight:600}
+.t3{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--grid);cursor:pointer}
+.t3:last-child{border-bottom:0}
+.t3 .rk{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;background:var(--chip)}
+.t3 .rk.r1{background:#e8b923;color:#3d2e00} .t3 .rk.r2{background:#c3c9d1;color:#29303a} .t3 .rk.r3{background:#cd8a52;color:#3a1f08}
+.t3 .tm{font-family:var(--f-display);font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.t3 .mt{font-size:12px;color:var(--muted)}
+.t3 .go{color:var(--muted);font-size:12.5px}
+
 /* settings */
 .list{display:flex;flex-direction:column;background:var(--panel);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
 .li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--grid);min-height:52px}
@@ -371,17 +385,24 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
 
   <!-- 紀錄 -->
   <section class="view" data-view="records" hidden>
-    <div class="vh"><h2>紀錄</h2><p>期間內的最佳成績與每次跑步</p></div>
+    <div class="vh"><h2>紀錄</h2><p id="recSince">全部跑步，不分期間</p></div>
+    <section class="kpis" id="recKpis" aria-label="全部跑步統計"></section>
     <section class="card">
-      <div class="ph"><h3>距離成績</h3><span class="note">以最快平均配速推估</span></div>
+      <div class="ph"><h3>距離分布</h3><span class="note">每次跑步依距離分類</span></div>
+      <div class="zones" id="recDist"></div>
+    </section>
+    <section class="card">
+      <div class="ph"><h3>距離成績</h3><span class="note">點類別看前三名</span></div>
       <div class="pbs" id="pbs"></div>
-      <p class="note">取距離達標的跑步中平均配速最快的一次，換算成該距離的完賽時間，不是 Garmin 的官方紀錄。</p>
+      <div class="top3" id="top3" hidden></div>
+      <p class="note">取距離達標的跑步，用平均配速換算成該距離的完賽時間，不是 Garmin 的官方紀錄。前三名各來自不同次跑步。</p>
     </section>
     <section class="card">
       <div class="ph"><h3>跑步紀錄</h3><span class="note" id="tblNote"></span></div>
       <div class="tbl"><table id="tbl"><thead><tr>
         <th>日期</th><th>標題</th><th class="n">距離 km</th><th class="n">時間</th><th class="n">配速 /km</th><th class="n">平均心率</th><th class="n">步頻</th><th class="n">爬升 m</th><th class="n">有氧 TE</th>
       </tr></thead><tbody></tbody></table></div>
+      <button class="btn ghost" type="button" id="tblMore" hidden>顯示更多</button>
     </section>
   </section>
 
@@ -793,16 +814,39 @@ function renderZones(cur){
   $('#zones').innerHTML=Z.map((z,i)=>{const pct=acc[i].s/total*100;return`<div class="zrow"><div class="zl"><b>${z[0]}</b> ${z[1]}<span>${Math.round(mx*z[2])}${i<4?'–'+(Math.round(mx*z[3])-1):'+'} bpm</span></div><div class="ztrack"><div class="zbar" style="width:${pct.toFixed(1)}%;background:var(--z${i+1})"></div></div><div class="zv">${pct.toFixed(0)}% · ${fmtHours(acc[i].s)}h · ${acc[i].n}次</div></div>`}).join('');
 }
 
-function renderPBs(cur){
-  const D=[['3K',3],['5K',5],['10K',10],['半馬',21.0975],['全馬',42.195]];
-  $('#pbs').innerHTML=D.map(([n,km])=>{const c=cur.filter(r=>r.dist>=km*.98);if(!c.length)return`<div class="pb"><span class="k">${n}</span><span class="v">—</span><span class="m">期間內沒有這麼長的跑步</span></div>`;
-    const b=c.reduce((a,r)=>r.secs/r.dist<a.secs/a.dist?r:a);const p=b.secs/b.dist;
-    return`<div class="pb"><span class="k">${n}</span><span class="v">${fmtDur(p*km)}</span><span class="m">${fmtPace(p)}/km · ${fmtMD(b.date)} ${b.dist.toFixed(1)}km</span></div>`}).join('');
+const PB_D=[['3K',3],['5K',5],['10K',10],['半馬',21.0975],['全馬',42.195]];let PB_OPEN=null,TBL_N=20;
+function topN(km,n){return RUNS.filter(r=>r.dist>=km*.98).map(r=>({r,p:r.secs/r.dist})).sort((a,b)=>a.p-b.p).slice(0,n)}
+function renderRecords(){
+  const all=RUNS,km=sum(all,r=>r.dist),secs=sum(all,r=>r.secs),longest=all.reduce((a,r)=>!a||r.dist>a.dist?r:a,null);
+  $('#recSince').textContent=all.length?`全部跑步，自 ${fmtDate(all[0].date)} 起`:'全部跑步，不分期間';
+  const k=[['總次數',all.length,'次',''],['總距離',km.toFixed(0),'km',''],['總時間',Math.floor(secs/3600),'小時',`${Math.round(secs%3600/60)} 分`],['最長距離',longest?longest.dist.toFixed(1):'—','km',longest?fmtDate(longest.date):'']];
+  $('#recKpis').replaceChildren(...k.map(([t,v,u,d])=>{const e=document.createElement('div');e.className='kpi';
+    const a=document.createElement('span');a.className='k';a.textContent=t;const b=document.createElement('span');b.className='v';b.textContent=v;const sm=document.createElement('small');sm.textContent=u;b.append(sm);
+    const c=document.createElement('span');c.className='d';c.textContent=d||`平均每次 ${all.length?(km/all.length).toFixed(1):0} km`;if(t!=='總次數'&&!d)c.textContent='';e.append(a,b,c);return e}));
+  const B=[['5K 以下',0,4.9],['5–10K',4.9,9.8],['10K–半馬',9.8,20.7],['半馬以上',20.7,1e9]],cnt=B.map(([,a,b])=>all.filter(r=>r.dist>=a&&r.dist<b).length),mx=Math.max(1,...cnt);
+  $('#recDist').replaceChildren(...B.map(([n],i)=>{const row=document.createElement('div');row.className='zrow';
+    const l=document.createElement('div');l.className='zl';const lb=document.createElement('b');lb.textContent=n;l.append(lb);
+    const tr=document.createElement('div');tr.className='ztrack';const bar=document.createElement('div');bar.className='zbar';bar.style.cssText=`width:${cnt[i]/mx*100}%;background:var(--z${i+2})`;tr.append(bar);
+    const v=document.createElement('div');v.className='zv';v.textContent=`${cnt[i]} 次 · ${all.length?Math.round(cnt[i]/all.length*100):0}%`;row.append(l,tr,v);return row}));
+  $('#pbs').replaceChildren(...PB_D.map(([n,dk])=>{const t=topN(dk,3),b=document.createElement('button');b.type='button';b.className='pb';
+    const kk=document.createElement('span');kk.className='k';kk.textContent=n+(t.length?` · ${RUNS.filter(r=>r.dist>=dk*.98).length} 次`:'');
+    const v=document.createElement('span');v.className='v';const m=document.createElement('span');m.className='m';
+    if(!t.length){v.textContent='—';m.textContent='還沒有這麼長的跑步';b.disabled=true}
+    else{v.textContent=fmtDur(t[0].p*dk);m.textContent=`${fmtPace(t[0].p)}/km · ${fmtDate(t[0].r.date)}`}
+    b.setAttribute('aria-expanded',PB_OPEN===n);b.onclick=()=>{PB_OPEN=PB_OPEN===n?null:n;renderRecords();if(PB_OPEN)$('#top3').scrollIntoView({behavior:'smooth',block:'nearest'})};b.append(kk,v,m);return b}));
+  const box=$('#top3'),open=PB_D.find(([n])=>n===PB_OPEN);box.hidden=!open;
+  if(open){const [n,dk]=open,h=document.createElement('h4');h.textContent=`${n} 前三名`;
+    box.replaceChildren(h,...topN(dk,3).map((x,i)=>{const row=document.createElement('div');row.className='t3';row.setAttribute('role','button');row.tabIndex=0;
+      const rk=document.createElement('span');rk.className='rk r'+(i+1);rk.textContent=i+1;
+      const mid=document.createElement('div'),tm=document.createElement('div'),mt=document.createElement('div');tm.className='tm';mt.className='mt';
+      tm.textContent=fmtDur(x.p*dk);mt.textContent=`${fmtPace(x.p)}/km · ${fmtDate(x.r.date)} · ${x.r.title} · 全程 ${x.r.dist.toFixed(2)} km${x.r.avgHr?` · 心率 ${Math.round(x.r.avgHr)}`:''}`;mid.append(tm,mt);
+      const go=document.createElement('span');go.className='go';go.textContent='明細 ›';
+      row.append(rk,mid,go);row.onclick=()=>openRun(x.r);row.onkeydown=e=>{if(e.key==='Enter')openRun(x.r)};return row}))}
 }
 
-function renderTable(cur){
-  const rs=cur.slice().sort((a,b)=>b.date-a.date).slice(0,20),tb=$('#tbl tbody');tb.replaceChildren();
-  $('#tblNote').textContent=`顯示 ${rs.length} / ${cur.length} 筆`;
+function renderTable(){
+  const allr=RUNS.slice().sort((a,b)=>b.date-a.date),rs=allr.slice(0,TBL_N),tb=$('#tbl tbody');tb.replaceChildren();
+  $('#tblNote').textContent=`顯示 ${rs.length} / ${allr.length} 筆 · 點一列看明細`;$('#tblMore').hidden=rs.length>=allr.length;
   for(const r of rs){const tr=document.createElement('tr');
     const cells=[[fmtDate(r.date),''],[r.title,''],[r.dist.toFixed(2),'n'],[fmtDur(r.secs),'n'],[fmtPace(r.secs/r.dist),'n'],[r.avgHr?Math.round(r.avgHr):'—','n'],[r.cad?Math.round(r.cad):'—','n'],[r.ascent!=null?Math.round(r.ascent):'—','n'],[r.te!=null?r.te:'—','n']];
     for(const [v,c] of cells){const td=document.createElement('td');td.textContent=v;if(c)td.className=c;tr.append(td)}
@@ -964,7 +1008,7 @@ function setView(v,scroll){
   if(v!=='run')PREV_VIEW=v;
   document.querySelectorAll('.view').forEach(s=>s.hidden=s.dataset.view!==v);
   document.querySelectorAll('.tab').forEach(t=>t.dataset.view===v?t.setAttribute('aria-current','page'):t.removeAttribute('aria-current'));
-  $('#range').hidden=v==='settings'||v==='coach'||v==='run';
+  $('#range').hidden=v==='settings'||v==='coach'||v==='run'||v==='records';
   if(v!=='run')try{localStorage.setItem(STORE+'.view',v)}catch(e){}
   if(scroll)window.scrollTo(0,0);
   render();
@@ -974,7 +1018,7 @@ document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>setView(t.dataset.vie
 function render(){
   RUNS.sort((a,b)=>a.date-b.date);
   const cur=windowRuns(state.range),prev=state.range==='all'?[]:windowRuns(state.range,+state.range);
-  renderKPIs(cur,prev);renderWeekly();renderACWR();renderPace(cur);renderZones(cur);renderMonthly();renderPBs(cur);renderTable(cur);renderForm(cur);renderHero();renderCoach();if(CUR_RUN&&!document.querySelector('.view[data-view=run]').hidden)renderRun();
+  renderKPIs(cur,prev);renderWeekly();renderACWR();renderPace(cur);renderZones(cur);renderMonthly();renderRecords();renderTable();renderForm(cur);renderHero();renderCoach();if(CUR_RUN&&!document.querySelector('.view[data-view=run]').hidden)renderRun();
   const s=$('#src');s.className='src '+(SOURCE.sample?'sample':'mine');s.textContent=SOURCE.sample?'範例資料':`${SOURCE.name} · ${RUNS.length} 次跑步`;
   $('#reset').hidden=SOURCE.sample||!!SOURCE.auto;
   $('#maxhr').placeholder=autoMax();
@@ -1009,6 +1053,8 @@ function renderCoach(){
   $('#cFoot').textContent=`由 ${a.model||'DeepSeek'} 依你的 Garmin 數據產生，僅供參考，不能取代專業醫療或教練的判斷。身體不適請先休息。`;
 }
 $('#toCoach').onclick=()=>setView('coach',true);
+
+$('#tblMore').onclick=()=>{TBL_N+=30;renderTable()};
 
 /* ---------- run detail ---------- */
 let CUR_RUN=null,PREV_VIEW='home',SYNC_PW=null;const DETAIL_CACHE=new Map();
