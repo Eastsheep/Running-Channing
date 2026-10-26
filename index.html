@@ -54,7 +54,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{ou
 .brand svg{width:32px;height:32px;border-radius:9px;flex:none}
 .brand h1{font-size:19px;font-weight:700;margin:0;letter-spacing:.02em;white-space:nowrap}
 .brand .view-t{color:var(--muted);font-size:13px;font-weight:500;white-space:nowrap}
-.appbar .spacer{flex:1}
+
 .src{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--chip);font-size:12.5px;color:var(--muted);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .src::before{content:"";width:7px;height:7px;border-radius:50%;flex:none}
 .src.sample::before{background:var(--warn)} .src.mine::before{background:var(--ok)}
@@ -225,6 +225,13 @@ button.pb:disabled{cursor:default}
 .tiles-dark{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}
 
 /* back button in app bar (run detail) */
+.srcwrap{flex:1 1 0;min-width:0;display:flex;justify-content:flex-end;align-items:center;gap:6px}
+.srcwrap .src{min-width:0}
+.syncbtn{flex:none;display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:50%;background:var(--chip);color:var(--s1);cursor:pointer;padding:0}
+.syncbtn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.syncbtn.busy svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.li input.tok{width:11em;text-align:left;font-size:13px}
 .appback{border:0;background:var(--chip);color:var(--s1);font-size:15px;font-weight:600;padding:6px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
 body.in-run .brand{display:none}
 body.in-run .appbar-in{flex-wrap:nowrap}
@@ -274,8 +281,8 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
       <svg viewBox="0 0 512 512" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a78d6"/><stop offset="1" stop-color="#104281"/></linearGradient></defs><rect width="512" height="512" fill="url(#lg)"/><g fill="#fff"><rect x="96" y="300" width="60" height="116" rx="14"/><rect x="182" y="250" width="60" height="166" rx="14"/><rect x="268" y="196" width="60" height="220" rx="14"/><rect x="354" y="140" width="60" height="276" rx="14"/></g><polyline points="96,250 182,214 268,150 384,86" fill="none" stroke="#ff8a4c" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <h1>跑步承廷</h1>
     </div>
-    <span class="spacer"></span>
-    <span id="src" class="src sample">範例資料</span>
+    <span class="srcwrap"><span id="src" class="src sample">範例資料</span>
+    <button class="syncbtn" type="button" id="syncNow" hidden aria-label="立即同步 Garmin" title="立即同步"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 21v-5h-5"/></svg></button></span>
     <div class="seg" id="range" role="group" aria-label="統計期間">
       <button data-v="28">4 週</button><button data-v="84" aria-pressed="true">12 週</button><button data-v="182">半年</button><button data-v="365">1 年</button><button data-v="all">全部</button>
     </div>
@@ -524,6 +531,7 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
     <div class="list-h">資料</div>
     <div class="list">
       <div class="li"><span class="t">目前資料來源<span id="srcDetail">範例資料</span></span></div>
+      <label class="li" for="ghTok" id="ghTokRow" hidden><span class="t">立即同步權杖<span>GitHub 權杖，只存在這台裝置</span></span><input id="ghTok" class="tok" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></label>
       <label class="li" for="unit"><span class="t">CSV 距離單位<span>匯入前設定</span></span><select id="unit"><option value="km">公里</option><option value="mi">英里</option></select></label>
     </div>
     <div class="btns">
@@ -535,6 +543,7 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
       <h3 style="margin:0;font-size:15.5px">怎麼取得 Garmin 資料</h3>
       <ol>
         <li><b>自動同步：</b>GitHub Actions 每天台灣時間 06:00 和 22:00 自動抓取並加密，打開 App 輸入資料密碼即可。設定方式見 repo 的 README。</li>
+        <li><b>立即同步：</b>按右上角的 ↻ 就會馬上抓一次，約 1～2 分鐘完成。第一次要先在上面填 GitHub 權杖：GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token，Repository access 只選這個 repo，Permissions 把 <b>Actions</b> 設成 Read and write、<b>Contents</b> 設成 Read-only。</li>
         <li><b>手機匯出 CSV：</b>Safari 開 connect.garmin.com 並切換為「要求桌面版網站」→ 活動 → 所有活動 → 篩選跑步 → 往下捲到要的日期 →「匯出 CSV」，再回來這裡匯入。</li>
         <li><b>完整歷史：</b>Garmin 帳戶「資料管理 → 匯出您的資料」，收到 zip 後匯入 <code>DI_CONNECT/DI-Connect-Fitness/*_summarizedActivities.json</code>。</li>
       </ol>
@@ -1082,7 +1091,8 @@ function render(){
   RUNS.sort((a,b)=>a.date-b.date);
   const cur=windowRuns(state.range),prev=state.range==='all'?[]:windowRuns(state.range,+state.range);
   renderKPIs(cur,prev);renderWeekly();renderACWR();renderPace(cur);renderZones(cur);renderMonthly();renderRecords();renderTable();renderForm(cur);renderHero();renderCoach();if(CUR_RUN&&!document.querySelector('.view[data-view=run]').hidden)renderRun();
-  const s=$('#src');s.className='src '+(SOURCE.sample?'sample':'mine');s.textContent=SOURCE.sample?'範例資料':`${SOURCE.name} · ${RUNS.length} 次跑步`;
+  const s=$('#src');s.className='src '+(SOURCE.sample?'sample':'mine');s.textContent=SOURCE.sample?'範例資料':SYNCING||`${SOURCE.auto?'Garmin':SOURCE.name} · ${RUNS.length} 次跑步`;
+  $('#syncNow').hidden=!SOURCE.auto;$('#ghTokRow').hidden=!SOURCE.auto;
   $('#reset').hidden=SOURCE.sample||!!SOURCE.auto;
   $('#maxhr').placeholder=autoMax();
 }
@@ -1312,6 +1322,43 @@ async function autoSync(){
       f.hidden=true;applySync(data)}
     catch(_){$('#unlockErr').textContent='密碼不對，請再試一次。'}};
 }
+
+/* ---------- 立即同步：觸發 GitHub Actions，跑完直接讀新資料 ---------- */
+const TOK=STORE+'.ghtok';
+const GH_REPO=location.hostname.endsWith('.github.io')&&location.pathname.split('/')[1]?`${location.hostname.split('.')[0]}/${location.pathname.split('/')[1]}`:'Eastsheep/Running-Channing';
+let SYNCING='';
+const setSyncing=t=>{SYNCING=t;$('#syncNow').classList.toggle('busy',!!t);$('#syncNow').disabled=!!t;render()};
+function gh(path,opt={}){const t=$('#ghTok').value.trim();return fetch(`https://api.github.com/repos/${GH_REPO}${path}`,{...opt,cache:'no-store',headers:{Authorization:'Bearer '+t,Accept:'application/vnd.github+json',...(opt.headers||{})}})}
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function syncNow(){
+  if(SYNCING)return;
+  if(!$('#ghTok').value.trim()){setView('settings');$('#ghTok').focus();return}
+  const t0=Date.now()-60e3;
+  try{
+    setSyncing('Garmin 同步中…');
+    const d=await gh('/actions/workflows/sync-garmin.yml/dispatches',{method:'POST',body:JSON.stringify({ref:'main'})});
+    if(d.status===401||d.status===403||d.status===404)throw new Error('權杖無效或權限不足，請確認 Actions 設成 Read and write。');
+    if(!d.ok)throw new Error(`GitHub 回應 ${d.status}`);
+    let run=null;
+    for(let i=0;i<120;i++){
+      await wait(i<3?3000:6000);
+      const r=await gh('/actions/workflows/sync-garmin.yml/runs?event=workflow_dispatch&per_page=5');if(!r.ok)continue;
+      run=((await r.json()).workflow_runs||[]).find(x=>Date.parse(x.created_at)>=t0);
+      if(run&&run.status==='completed')break;
+    }
+    if(!run||run.status!=='completed')throw new Error('等太久了，同步可能還在跑，晚點再打開看看。');
+    if(run.conclusion!=='success')throw new Error(`同步失敗，<a href="${run.html_url}" target="_blank" rel="noopener">到 GitHub 看原因</a>。`);
+    setSyncing('Garmin 讀取新資料…');
+    const c=await gh('/contents/data/runs.enc.json?ref=main',{headers:{Accept:'application/vnd.github.raw+json'}});
+    const blob=c.ok?await c.json():await (await fetch('data/runs.enc.json',{cache:'no-store'})).json();
+    const data=await decryptBlob(blob,SYNC_PW);
+    SYNCING='';applySync(data);
+  }catch(e){msg(e.message||'同步失敗，請再試一次。',true)}
+  finally{setSyncing('')}
+}
+try{$('#ghTok').value=localStorage.getItem(TOK)||''}catch(e){}
+$('#ghTok').onchange=()=>{try{const t=$('#ghTok').value.trim();t?localStorage.setItem(TOK,t):localStorage.removeItem(TOK)}catch(e){}};
+$('#syncNow').onclick=syncNow;
 
 /* ---------- boot ---------- */
 if(restore()){$('#msg').innerHTML=`已載入你上次匯入的 <b>${RUNS.length}</b> 次跑步（${SOURCE.name.replace(/</g,'&lt;')}）。`}
