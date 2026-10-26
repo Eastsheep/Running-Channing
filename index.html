@@ -222,6 +222,10 @@ button.pb:disabled{cursor:default}
 .leaflet-container{font:inherit}
 .tiles-dark{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}
 
+/* back button in app bar (run detail) */
+.appback{border:0;background:var(--chip);color:var(--s1);font-size:15px;font-weight:600;padding:6px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
+body.in-run .brand svg{display:none}
+
 /* settings */
 .list{display:flex;flex-direction:column;background:var(--panel);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
 .li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--grid);min-height:52px}
@@ -261,6 +265,7 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
 
 <header class="appbar">
   <div class="appbar-in">
+    <button class="appback" type="button" id="appBack" hidden aria-label="返回上一頁">‹ 返回</button>
     <div class="brand">
       <svg viewBox="0 0 512 512" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a78d6"/><stop offset="1" stop-color="#104281"/></linearGradient></defs><rect width="512" height="512" fill="url(#lg)"/><g fill="#fff"><rect x="96" y="300" width="60" height="116" rx="14"/><rect x="182" y="250" width="60" height="166" rx="14"/><rect x="268" y="196" width="60" height="220" rx="14"/><rect x="354" y="140" width="60" height="276" rx="14"/></g><polyline points="96,250 182,214 268,150 384,86" fill="none" stroke="#ff8a4c" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <h1>跑步承廷</h1>
@@ -442,7 +447,6 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
 
   <!-- 單次跑步 -->
   <section class="view" data-view="run" hidden>
-    <button class="back" type="button" id="runBack">‹ 返回</button>
     <div class="vh"><h2 id="rTitle"></h2><p id="rDate"></p></div>
     <div class="rstats" id="rStats"></div>
     <div class="msg" id="rMsg" hidden></div>
@@ -1063,6 +1067,7 @@ function setView(v,scroll){
   document.querySelectorAll('.view').forEach(s=>s.hidden=s.dataset.view!==v);
   document.querySelectorAll('.tab').forEach(t=>t.dataset.view===v?t.setAttribute('aria-current','page'):t.removeAttribute('aria-current'));
   $('#range').hidden=v==='settings'||v==='coach'||v==='run'||v==='records';
+  $('#appBack').hidden=v!=='run';document.body.classList.toggle('in-run',v==='run');
   if(v!=='run')try{localStorage.setItem(STORE+'.view',v)}catch(e){}
   if(scroll)window.scrollTo(0,0);
   render();
@@ -1119,8 +1124,10 @@ async function loadDetail(r){
   let d;try{const res=await fetch('data/detail/'+await detailName(r.id,SYNC_PW),{cache:'no-store'});if(!res.ok)return undefined;d=await decryptBlob(await res.json(),SYNC_PW)}catch(e){return undefined}
   DETAIL_CACHE.set(r.id,d);return d;
 }
-function openRun(r){CUR_RUN=r;setView('run',true)}
-$('#runBack').onclick=()=>setView(PREV_VIEW,true);
+let BACK_Y=0;
+function openRun(r){if(!CUR_RUN||$('.view[data-view=run]').hidden)BACK_Y=scrollY;CUR_RUN=r;setView('run',true)}
+// 返回時回到原本捲動的位置
+$('#appBack').onclick=()=>{setView(PREV_VIEW);requestAnimationFrame(()=>scrollTo(0,BACK_Y))};
 $('#lastCard').onclick=()=>{const last=RUNS[RUNS.length-1];if(last)openRun(last)};
 const OV=[
   {k:'pace',n:'配速',col:'var(--s1)',u:'/km',fmt:fmtPace,invert:true,pace:true,get:P=>smooth(P.map(p=>[p[0],p[2]&&p[2]<1200?p[2]:null]))},
