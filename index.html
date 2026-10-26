@@ -149,6 +149,8 @@ th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:8px
 td{padding:10px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
 tr:last-child td{border-bottom:0}
 td.n,th.n{text-align:right}
+td small{display:block;font-size:11px;color:var(--muted)}
+#chTbl td,#chTbl th{padding-inline:6px}
 
 /* coach */
 .ai-tag{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--s1);background:color-mix(in srgb,var(--s1) 12%,transparent);padding:2px 9px;border-radius:999px}
@@ -334,6 +336,14 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
         <div class="ph"><h3>步頻 × 配速</h3><span class="note" id="cpStat"></span></div>
         <div class="chart" id="cpChart"></div>
         <p class="note">越右越快。點往右上延伸代表靠提高步頻加速；偏平則是靠加大步幅。</p>
+      </section>
+      <section class="card wide">
+        <div class="ph"><h3>步頻 × 心率（同配速比較）</h3><span class="note" id="chStat"></span></div>
+        <p class="status-txt" id="chText"></p>
+        <div class="legend" id="chLegend"></div>
+        <div class="chart" id="chChart"></div>
+        <div class="tbl"><table id="chTbl"><thead><tr><th>配速</th><th class="n">次數</th><th class="n">高步頻組</th><th class="n">低步頻組</th><th class="n">差異</th></tr></thead><tbody></tbody></table></div>
+        <p class="note">跑得快時步頻和心率都會上升，直接比較會誤以為步頻拉高了心率。所以這裡把跑步依配速分成三組，在同一組裡比較步頻高和步頻低的那一半（表格是兩半的平均心率，小字是平均步頻）；上方的估計值則是同時考慮配速後，步頻多 5 spm 時平均心率的變化。</p>
       </section>
     </div>
   </section>
@@ -810,6 +820,46 @@ function renderForm(cur){
   xyScatter($('#cpChart'),cp.map(r=>({x:r.secs/r.dist,y:r.cad,title:`${fmtDate(r.date)} ${r.title}`,lines:[`配速 ${fmtPace(r.secs/r.dist)}/km · 步頻 ${Math.round(r.cad)}`,`步幅 ${strideOf(r).toFixed(2)} m`]})),{fmtX:fmtPace,fmtY:v=>Math.round(v),invertX:true,paceX:true,xLabel:'配速（越右越快）→',yLabel:'步頻 spm'});
   if(cp.length>=5){const xs=cp.map(r=>r.dist*1000/r.secs),ys=cp.map(r=>r.cad),mx=meanOf(xs),my=meanOf(ys);let sxy=0,sxx=0,syy=0;xs.forEach((v,i)=>{sxy+=(v-mx)*(ys[i]-my);sxx+=(v-mx)**2;syy+=(ys[i]-my)**2});const rr=sxx&&syy?sxy/Math.sqrt(sxx*syy):0;
     $('#cpStat').textContent=`相關係數 ${rr.toFixed(2)}（${Math.abs(rr)<.3?'弱':Math.abs(rr)<.6?'中等':'強'}）`}else $('#cpStat').textContent='';
+  renderCadHr(rs);
+}
+
+function renderCadHr(rs){
+  const pts=rs.filter(r=>r.cad&&r.avgHr).map(r=>({r,c:r.cad,h:r.avgHr,p:r.secs/r.dist}));
+  const box=$('#chChart'),{svg,W}=frame(box,250),H=250,m={l:44,r:12,t:12,b:30},tb=$('#chTbl tbody');
+  tb.replaceChildren();$('#chLegend').replaceChildren();
+  if(pts.length<12){noData(svg,W,H,'需要至少 12 次有步頻和心率的跑步');$('#chStat').textContent='';$('#chText').textContent='這段期間的資料還不夠，換成較長的期間再看。';return}
+  // 同時考慮速度與步頻的迴歸：心率 ≈ a + b·速度 + k·步頻
+  const sp=pts.map(q=>1000/q.p),cs=pts.map(q=>q.c),hs=pts.map(q=>q.h),ms=meanOf(sp),mc=meanOf(cs),mh=meanOf(hs);
+  let Sss=0,Scc=0,Ssc=0,Ssh=0,Sch=0,Shh=0;
+  pts.forEach((q,i)=>{const a=sp[i]-ms,c=cs[i]-mc,h=hs[i]-mh;Sss+=a*a;Scc+=c*c;Ssc+=a*c;Ssh+=a*h;Sch+=c*h;Shh+=h*h});
+  const det=Sss*Scc-Ssc*Ssc,k=det?(Sch*Sss-Ssh*Ssc)/det:0,raw=Scc&&Shh?Sch/Math.sqrt(Scc*Shh):0,k5=k*5;
+  $('#chStat').textContent=`同配速下步頻 +5 spm → 心率 ${k5>=0?'+':'−'}${Math.abs(k5).toFixed(1)} bpm`;
+  $('#chText').textContent=`直接看，步頻和心率的相關係數是 ${raw.toFixed(2)}${Math.abs(raw)<.3?'，關聯很弱':raw>0?'，步頻高的時候心率也偏高':'，步頻高的時候心率偏低'}。`+
+    (Math.abs(k5)<1.5?`但把配速考慮進去後，步頻本身幾乎不影響心率，表面上的關聯主要來自配速：跑得快時兩者都會上升。調整步頻可以放心，不會讓你更喘。`
+    :k5<0?`把配速考慮進去後，同樣的配速下步頻越高、心率越低，代表提高步頻對你來說比較省力，可以繼續往這個方向練。`
+    :`把配速考慮進去後，同樣的配速下步頻越高、心率反而越高，可能是步頻拉得太刻意、還不習慣。先在輕鬆跑慢慢適應，不要一次加太多。`);
+  const ps=pts.map(q=>q.p).sort((a,b)=>a-b),t1=ps[Math.floor(ps.length/3)],t2=ps[Math.floor(ps.length*2/3)];
+  const bands=[{n:'快',col:'var(--z5)',f:p=>p<t1},{n:'中',col:'var(--z3)',f:p=>p>=t1&&p<t2},{n:'慢',col:'var(--z2)',f:p=>p>=t2}];
+  const sx=scaleY(Math.min(...cs),Math.max(...cs)),sy=scaleY(Math.min(...hs),Math.max(...hs)),iw=W-m.l-m.r,ih=H-m.t-m.b;
+  const x=v=>m.l+(v-sx.lo)/(sx.hi-sx.lo)*iw,y=v=>m.t+ih-(v-sy.lo)/(sy.hi-sy.lo)*ih;
+  for(let v=sy.lo;v<=sy.hi+1e-9;v+=sy.step){el('line',{x1:m.l,x2:W-m.r,y1:y(v),y2:y(v),class:'gl'},svg);el('text',{x:m.l-6,y:y(v)+3.5,'text-anchor':'end',class:'ax'},svg).textContent=Math.round(v)}
+  for(let v=sx.lo;v<=sx.hi+1e-9;v+=sx.step)el('text',{x:x(v),y:H-14,'text-anchor':'middle',class:'ax'},svg).textContent=Math.round(v);
+  el('text',{x:W-m.r,y:H-2,'text-anchor':'end',class:'ax'},svg).textContent='步頻 spm →';
+  el('text',{x:m.l+4,y:m.t+10,class:'ax'},svg).textContent='平均心率 bpm';
+  for(const b of bands){
+    const g=pts.filter(q=>b.f(q.p));if(!g.length)continue;
+    const lo=Math.min(...g.map(q=>q.p)),hi=Math.max(...g.map(q=>q.p)),lbl=`${b.n}（${fmtPace(lo)}–${fmtPace(hi)}）`;
+    const lg=document.createElement('span'),i=document.createElement('i');i.className='bar';i.style.cssText=`background:${b.col};border-radius:50%`;lg.append(i,lbl);$('#chLegend').append(lg);
+    if(g.length>=4){const gx=meanOf(g.map(q=>q.c)),gy=meanOf(g.map(q=>q.h));let a=0,d=0;g.forEach(q=>{a+=(q.c-gx)*(q.h-gy);d+=(q.c-gx)**2});
+      if(d){const sl=a/d,c0=Math.min(...g.map(q=>q.c)),c1=Math.max(...g.map(q=>q.c));el('line',{x1:x(c0),x2:x(c1),y1:y(gy+sl*(c0-gx)),y2:y(gy+sl*(c1-gx)),stroke:b.col,'stroke-width':2.5,'stroke-linecap':'round','pointer-events':'none'},svg)}}
+    g.forEach(q=>{const cx=x(q.c),cy=y(q.h);el('circle',{cx,cy,r:4.5,fill:b.col,'fill-opacity':.75,stroke:'var(--panel)','stroke-width':1.5},svg);
+      const h=el('circle',{cx,cy,r:10,fill:'transparent'},svg);
+      h.addEventListener('pointermove',e=>showTip(e,`${fmtDate(q.r.date)} ${q.r.title}`,[`步頻 ${Math.round(q.c)} · 心率 ${Math.round(q.h)}`,`配速 ${fmtPace(q.p)}/km · ${q.r.dist.toFixed(2)} km`]));h.addEventListener('pointerleave',hideTip)});
+    const med=g.map(q=>q.c).sort((a,b)=>a-b)[Math.floor(g.length/2)],up=g.filter(q=>q.c>=med),dn=g.filter(q=>q.c<med);
+    const tr=document.createElement('tr'),hu=up.length?meanOf(up.map(q=>q.h)):null,hd=dn.length?meanOf(dn.map(q=>q.h)):null,df=hu!=null&&hd!=null?hu-hd:null;
+    [[b.n,'',`${fmtPace(lo)}–${fmtPace(hi)}`],[g.length,'n'],[hu!=null?Math.round(hu):'—','n',up.length?`${Math.round(meanOf(up.map(q=>q.c)))} spm`:''],[hd!=null?Math.round(hd):'—','n',dn.length?`${Math.round(meanOf(dn.map(q=>q.c)))} spm`:''],[df!=null?`${df>=0?'+':'−'}${Math.abs(df).toFixed(1)}`:'—','n']]
+      .forEach(([v,c,sub])=>{const td=document.createElement('td');td.textContent=v;if(c)td.className=c;if(sub){const sm=document.createElement('small');sm.textContent=sub;td.append(sm)}tr.append(td)});tb.append(tr);
+  }
 }
 
 /* ---------- overview ---------- */
