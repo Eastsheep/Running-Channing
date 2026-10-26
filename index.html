@@ -1123,9 +1123,9 @@ function openRun(r){CUR_RUN=r;setView('run',true)}
 $('#runBack').onclick=()=>setView(PREV_VIEW,true);
 $('#lastCard').onclick=()=>{const last=RUNS[RUNS.length-1];if(last)openRun(last)};
 const OV=[
-  {k:'pace',n:'配速',col:'var(--s1)',u:'/km',fmt:fmtPace,invert:true,pace:true,clip:true,get:P=>smooth(P.map(p=>[p[0],p[2]&&p[2]<1200?p[2]:null]))},
+  {k:'pace',n:'配速',col:'var(--s1)',u:'/km',fmt:fmtPace,invert:true,pace:true,get:P=>smooth(P.map(p=>[p[0],p[2]&&p[2]<1200?p[2]:null]))},
   {k:'hr',n:'心率',col:'var(--bad)',u:'bpm',fmt:v=>Math.round(v),span:20,get:P=>P.map(p=>[p[0],p[3]])},
-  {k:'cad',n:'步頻',col:'var(--s3)',u:'spm',fmt:v=>Math.round(v),span:20,clip:true,get:P=>smooth(P.map(p=>[p[0],p[4]]))},
+  {k:'cad',n:'步頻',col:'var(--s3)',u:'spm',fmt:v=>Math.round(v),span:20,get:P=>smooth(P.map(p=>[p[0],p[4]]))},
   {k:'el',n:'海拔',col:'var(--muted)',u:'m',fmt:v=>Math.round(v),span:20,area:true,get:P=>P.map(p=>[p[0],p[5]])}];
 let OV_SEL=['pace','hr'];try{const v=JSON.parse(localStorage.getItem(STORE+'.overlay')||'null');if(Array.isArray(v)&&v.length)OV_SEL=v.filter(k=>OV.some(o=>o.k===k))}catch(e){}
 function overlayChart(box,P){
@@ -1133,8 +1133,9 @@ function overlayChart(box,P){
   const m={l:ser.length?44:12,r:ser.length>1?44:12,t:10,b:24},iw=W-m.l-m.r,ih=H-m.t-m.b,D=P[P.length-1][0]||1,x=d=>m.l+d/D*iw;
   if(!ser.length){noData(svg,W,H,OV_SEL.length?'這次跑步沒有選取的資料':'請至少勾選一項指標');$('#ovRead').replaceChildren();return}
   // 每個指標各用自己的刻度；前兩項的刻度畫在左右兩側
-  ser.forEach(o=>{const vs=o.pts.map(p=>p[1]).sort((a,b)=>a-b);let lo=o.clip?vs[Math.floor(vs.length*.05)]:vs[0],hi=o.clip?vs[Math.ceil(vs.length*.95)-1]:vs[vs.length-1];
-    const pd=Math.max(0,((o.span||0)-(hi-lo))/2);o.sc=scaleY(lo-pd,hi+pd,null,o.pace);
+  // 用全部數據的最小、最大值，上下再各留 8% 空間，避免線條貼邊或被切掉
+  ser.forEach(o=>{const vs=o.pts.map(p=>p[1]);let lo=Math.min(...vs),hi=Math.max(...vs);
+    const pd=Math.max(((o.span||0)-(hi-lo))/2,(hi-lo)*.08,o.pace?5:1);o.sc=scaleY(lo-pd,hi+pd,null,o.pace);
     o.y=v=>{v=Math.min(o.sc.hi,Math.max(o.sc.lo,v));const f=(v-o.sc.lo)/(o.sc.hi-o.sc.lo);return m.t+(o.invert?f:1-f)*ih}});
   const a=ser[0];for(let v=a.sc.lo;v<=a.sc.hi+1e-9;v+=a.sc.step)el('line',{x1:m.l,x2:W-m.r,y1:a.y(v),y2:a.y(v),class:'gl'},svg);
   ser.slice(0,2).forEach((o,i)=>{for(let v=o.sc.lo;v<=o.sc.hi+1e-9;v+=o.sc.step)el('text',{x:i?W-m.r+6:m.l-6,y:o.y(v)+3.5,'text-anchor':i?'start':'end',class:'ax',fill:o.col,style:`fill:${o.col}`},svg).textContent=o.fmt(v)});
