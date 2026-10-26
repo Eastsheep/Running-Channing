@@ -41,6 +41,14 @@ repo 裡的 GitHub Actions（`.github/workflows/sync-garmin.yml`）每天台灣�
 - 沒有新跑步時不會重新呼叫 API；呼叫失敗時沿用上一次的分析，不影響資料同步。
 - 想換模型，在 workflow 的 env 加 `DEEPSEEK_MODEL`（預設 `deepseek-chat`）。
 
+## 單次跑步明細
+
+點總覽的「最近一次」或「紀錄」表格裡的任何一列，就會打開那次跑步的明細：逐公里分段、配速／心率／步頻／海拔曲線，以及前後半段比較和心率漂移。
+
+- 明細來自自動同步：第一次會往回抓最近 100 次，之後每次新跑步都會自動加入。手動匯入的 CSV 只有整次平均，沒有明細。
+- 每次跑步一個加密檔，放在 `data/detail/`，檔名由資料密碼和活動編號雜湊而成；只保留距離、時間、心率、步頻、海拔，不保留 GPS 位置。
+- 如果改了 DATA_PASSWORD，刪掉 `data/detail/` 資料夾再 Run workflow，就會用新密碼重新產生。
+
 ## 用手機取得資料（iPhone）
 
 Garmin Connect App 本身沒有匯出功能，要改用 Safari 開網頁版：
