@@ -210,7 +210,9 @@ button.pb:disabled{cursor:default}
 
 /* table filter */
 .filt{display:flex;flex-direction:column;gap:10px}
-.filt .chip{--c:var(--s1);padding:5px 11px;font-size:13px}
+.filt .chip{--c:var(--s1);padding:5px 8px;font-size:12.5px;flex:none;white-space:nowrap}
+#fDist{flex-wrap:nowrap;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+#fDist::-webkit-scrollbar{display:none}
 .frow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)}
 .frow select{font:inherit;color:var(--fg);background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:6px 8px}
 #recDist .zrow{cursor:pointer}
@@ -224,7 +226,9 @@ button.pb:disabled{cursor:default}
 
 /* back button in app bar (run detail) */
 .appback{border:0;background:var(--chip);color:var(--s1);font-size:15px;font-weight:600;padding:6px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
-body.in-run .brand svg{display:none}
+body.in-run .brand{display:none}
+body.in-run .appbar-in{flex-wrap:nowrap}
+body.in-run .src{min-width:0}
 
 /* settings */
 .list{display:flex;flex-direction:column;background:var(--panel);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
