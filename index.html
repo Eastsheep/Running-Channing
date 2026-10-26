@@ -215,6 +215,12 @@ button.pb:disabled{cursor:default}
 .frow select{font:inherit;color:var(--fg);background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:6px 8px}
 #recDist .zrow{cursor:pointer}
 
+/* route map */
+#map{height:320px;border-radius:12px;overflow:hidden;background:var(--panel-2);z-index:0}
+@media (min-width:900px){#map{height:420px}}
+.legend .grad{display:inline-block;width:72px;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--z1),var(--z3),var(--z5))}
+.leaflet-container{font:inherit}
+
 /* settings */
 .list{display:flex;flex-direction:column;background:var(--panel);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
 .li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--grid);min-height:52px}
@@ -445,6 +451,11 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
         <div class="half" id="rHalf"></div>
         <p class="status-txt" id="rDrift"></p>
         <p class="note">心率漂移：用「速度 ÷ 心率」比較前後半段，後半段同樣心率跑得越慢，漂移越大。穩定配速、30 分鐘以上的跑步最準；間歇或變速跑僅供參考。</p>
+      </section>
+      <section class="card" id="mapCard" hidden>
+        <div class="ph"><h3>路線</h3><div class="legend"><span>慢</span><span class="grad" aria-hidden="true"></span><span>快</span></div></div>
+        <div id="map" role="img" aria-label="跑步路線地圖"></div>
+        <p class="note" id="mapNote">路線顏色代表配速。在下方疊圖上滑動，地圖上的點會跟著移動。</p>
       </section>
       <section class="card">
         <div class="ph"><h3>曲線疊圖</h3><span class="note" id="ovNote">勾選要比較的指標，最多 4 項</span></div>
@@ -1137,9 +1148,9 @@ function overlayChart(box,P){
   const hr=el('rect',{x:m.l,y:m.t,width:iw,height:ih,fill:'transparent',style:'touch-action:pan-y'},svg);
   const move=e=>{const bb=svg.getBoundingClientRect(),d=Math.max(0,Math.min(D,((e.clientX-bb.left)*W/bb.width-m.l)/iw*D));
     hv.setAttribute('x1',x(d));hv.setAttribute('x2',x(d));hv.setAttribute('visibility','visible');
-    ser.forEach((o,i)=>{let best=o.pts[0];for(const p of o.pts)if(Math.abs(p[0]-d)<Math.abs(best[0]-d))best=p;dots[i].setAttribute('cx',x(best[0]));dots[i].setAttribute('cy',o.y(best[1]));dots[i].setAttribute('visibility','visible')});show(d)};
+    ser.forEach((o,i)=>{let best=o.pts[0];for(const p of o.pts)if(Math.abs(p[0]-d)<Math.abs(best[0]-d))best=p;dots[i].setAttribute('cx',x(best[0]));dots[i].setAttribute('cy',o.y(best[1]));dots[i].setAttribute('visibility','visible')});show(d);if(MAP_HOVER)MAP_HOVER(d)};
   hr.addEventListener('pointermove',move);hr.addEventListener('pointerdown',move);
-  hr.addEventListener('pointerleave',()=>{hv.setAttribute('visibility','hidden');dots.forEach(c=>c.setAttribute('visibility','hidden'));show(D)});
+  hr.addEventListener('pointerleave',()=>{if(MAP_HOVER)MAP_HOVER(null);hv.setAttribute('visibility','hidden');dots.forEach(c=>c.setAttribute('visibility','hidden'));show(D)});
   show(D);read.firstChild.textContent='全程終點';
   $('#ovNote').textContent=ser.length>2?'第 3 項以後沒有刻度，數值看下方讀數':ser.some(o=>o.invert)?'配速越上方越快':'勾選要比較的指標，最多 4 項';
 }
@@ -1148,6 +1159,36 @@ function renderOvPick(P){
     const i=document.createElement('i');b.append(i,o.n);
     b.onclick=()=>{OV_SEL=OV_SEL.includes(o.k)?OV_SEL.filter(k=>k!==o.k):[...OV_SEL,o.k];try{localStorage.setItem(STORE+'.overlay',JSON.stringify(OV_SEL))}catch(e){}renderOvPick(P)};return b}));
   overlayChart($('#ovChart'),P);
+}
+let LEAFLET=null,MAP=null,MAP_HOVER=null,CUR_RUN_DETAIL=null;
+function loadLeaflet(){
+  if(LEAFLET)return LEAFLET;
+  LEAFLET=new Promise((ok,bad)=>{const l=document.createElement('link');l.rel='stylesheet';l.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';document.head.append(l);
+    const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';sc.onload=()=>ok(window.L);sc.onerror=()=>{LEAFLET=null;bad(new Error('地圖元件載入失敗'))};document.head.append(sc)});
+  return LEAFLET;
+}
+async function renderMap(d,P){
+  const card=$('#mapCard'),route=d.route||[];MAP_HOVER=null;
+  if(MAP){MAP.remove();MAP=null}
+  card.hidden=route.length<2;if(card.hidden)return;
+  let L;try{L=await loadLeaflet()}catch(e){$('#mapNote').textContent='地圖載入失敗，請確認網路連線後重新打開。';return}
+  if(!$('#mapCard').isConnected||CUR_RUN_DETAIL!==d)return;
+  const css=getComputedStyle(document.documentElement),cv=n=>css.getPropertyValue(n).trim();
+  const dark=matchMedia('(prefers-color-scheme: dark)').matches&&document.documentElement.dataset.theme!=='light'||document.documentElement.dataset.theme==='dark';
+  MAP=L.map('map',{zoomControl:true,attributionControl:true,scrollWheelZoom:false});
+  L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark?'dark_all':'rastertiles/voyager'}/{z}/{x}/{y}{r}.png`,{maxZoom:19,subdomains:'abcd',attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(MAP);
+  // 依配速上色：用曲線資料找每個路線點附近的配速
+  const pp=smooth(P.map(p=>[p[0],p[2]&&p[2]<1200?p[2]:null]),3).filter(p=>p[1]!=null),paceAt=km=>{let lo=0,hi=pp.length-1;while(lo<hi){const m=(lo+hi)>>1;if(pp[m][0]<km)lo=m+1;else hi=m}return pp[lo]?pp[lo][1]:null};
+  const vs=pp.map(p=>p[1]).sort((a,b)=>a-b),fast=vs[Math.floor(vs.length*.1)]||0,slow=vs[Math.ceil(vs.length*.9)-1]||1,cols=['--z1','--z2','--z3','--z4','--z5'].map(cv);
+  const colOf=pc=>{if(pc==null||slow<=fast)return cols[2];const f=Math.max(0,Math.min(1,(slow-pc)/(slow-fast)));return cols[Math.min(4,Math.floor(f*5))]};
+  L.polyline(route.map(r=>[r[0],r[1]]),{color:dark?'#000':'#fff',weight:8,opacity:.6}).addTo(MAP);
+  let seg=[route[0]],cur=colOf(paceAt(route[0][2]));
+  for(let i=1;i<route.length;i++){const c=colOf(paceAt(route[i][2]));seg.push(route[i]);if(c!==cur||i===route.length-1){L.polyline(seg.map(r=>[r[0],r[1]]),{color:cur,weight:5,opacity:1}).addTo(MAP);seg=[route[i]];cur=c}}
+  const pin=(r,col,t)=>L.circleMarker([r[0],r[1]],{radius:7,color:'#fff',weight:2,fillColor:col,fillOpacity:1}).bindTooltip(t).addTo(MAP);
+  pin(route[0],cv('--ok'),'起點');pin(route[route.length-1],cv('--bad'),'終點');
+  MAP.fitBounds(L.latLngBounds(route.map(r=>[r[0],r[1]])),{padding:[20,20]});
+  const dot=L.circleMarker([route[0][0],route[0][1]],{radius:8,color:'#fff',weight:3,fillColor:cv('--s2'),opacity:0,fillOpacity:0}).addTo(MAP);
+  MAP_HOVER=km=>{if(km==null){dot.setStyle({opacity:0,fillOpacity:0});return}let b=route[0];for(const r of route)if(Math.abs(r[2]-km)<Math.abs(b[2]-km))b=r;dot.setLatLng([b[0],b[1]]).setStyle({opacity:1,fillOpacity:1})};
 }
 function smooth(pts,k=2){return pts.map((p,i)=>{const w=pts.slice(Math.max(0,i-k),i+k+1).map(q=>q[1]).filter(v=>v!=null);return[p[0],w.length?meanOf(w):null]})}
 async function renderRun(){
@@ -1166,7 +1207,7 @@ async function renderRun(){
   }
   mm.hidden=true;$('#rDetail').hidden=false;
   const P=d.pts;// [km, 秒, 配速秒/km, 心率, 步頻, 海拔]
-  renderOvPick(P);
+  CUR_RUN_DETAIL=d;renderMap(d,P);renderOvPick(P);
   // 前後半段
   const D=P[P.length-1][0],T=P[P.length-1][1],mid=P.reduce((a,p)=>Math.abs(p[0]-D/2)<Math.abs(a[0]-D/2)?p:a);
   const half=(ps,d0,t0,d1,t1)=>({pace:(t1-t0)/(d1-d0),hr:meanOf(ps.map(p=>p[3]).filter(Boolean)),cad:meanOf(ps.map(p=>p[4]).filter(Boolean))});

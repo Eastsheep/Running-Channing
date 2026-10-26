@@ -1,5 +1,5 @@
 """每天從 Garmin Connect 抓跑步紀錄，加密後寫入 data/runs.enc.json；
-每次跑步的逐公里分段與曲線另外加密寫入 data/detail/（一次跑步一個檔，不含 GPS 位置）。
+每次跑步的逐公里分段、曲線與路線另外加密寫入 data/detail/（一次跑步一個檔）。
 
 需要的環境變數（存在 GitHub Secrets）：
   GARMIN_EMAIL, GARMIN_PASSWORD  Garmin 帳號密碼
@@ -9,6 +9,7 @@
 import base64
 import hashlib
 import json
+import math
 import os
 import sys
 import time
@@ -22,6 +23,8 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "data", "runs.enc.json")
 DETAIL_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "detail")
 DETAIL_RUNS = 100  # 第一次同步時往回抓明細的跑步次數
 DETAIL_POINTS = 160  # 每次跑步的曲線點數
+ROUTE_POINTS = 400  # 每次跑步的路線點數
+ROUTE_TRIM_KM = 0  # 路線頭尾各隱藏的距離（公里），想隱藏起終點附近可改成 0.2
 ITERATIONS = 250_000
 PAGE = 200
 MAX_ACTIVITIES = 5000
@@ -76,7 +79,7 @@ def fetch_runs(api):
 
 
 def to_detail(raw):
-    """把 Garmin 的逐點資料整理成逐公里分段和縮減過的曲線，刻意不保留經緯度。"""
+    """把 Garmin 的逐點資料整理成逐公里分段、縮減過的曲線，以及路線。"""
     idx = {d["key"]: d["metricsIndex"] for d in raw.get("metricDescriptors") or [] if isinstance(d.get("metricsIndex"), int)}
 
     def col(sample, key):
@@ -92,7 +95,7 @@ def to_detail(raw):
         cad = col(s, "directDoubleCadence") or col(s, "directRunCadence")
         if cad and cad < 120:  # 有些裝置只記單腳步頻
             cad *= 2
-        rows.append({"d": d / 1000, "t": t, "hr": col(s, "directHeartRate"), "cad": cad, "el": col(s, "directElevation")})
+        rows.append({"d": d / 1000, "t": t, "hr": col(s, "directHeartRate"), "cad": cad, "el": col(s, "directElevation"), "lat": col(s, "directLatitude"), "lon": col(s, "directLongitude")})
     rows.sort(key=lambda r: r["t"])
     if len(rows) < 10 or rows[-1]["d"] < 0.5:
         return None
@@ -120,12 +123,36 @@ def to_detail(raw):
         dd, dt = seg[-1]["d"] - (rows[i - 1]["d"] if i else 0), seg[-1]["t"] - (rows[i - 1]["t"] if i else rows[0]["t"])
         el = seg[-1]["el"]
         pts.append([round(seg[-1]["d"], 3), round(seg[-1]["t"]), round(dt / dd) if dd > 0.005 else None, avg(seg, "hr"), avg(seg, "cad"), round(el, 1) if el is not None else None])
-    return {"splits": splits, "pts": pts}
+    total = rows[-1]["d"]
+    geo = [r for r in rows if r["lat"] is not None and r["lon"] is not None]
+    if not geo:
+        geo = polyline_rows(raw)
+    geo = [r for r in geo if ROUTE_TRIM_KM <= r["d"] <= total - ROUTE_TRIM_KM]
+    gstep = max(1, len(geo) // ROUTE_POINTS)
+    route = [[round(r["lat"], 5), round(r["lon"], 5), round(r["d"], 3)] for r in geo[::gstep]]
+    return {"splits": splits, "pts": pts, "route": route, "trim": ROUTE_TRIM_KM}
 
 
 def detail_name(activity_id, password):
     """檔名由密碼和活動編號雜湊而成，公開的 repo 看不出是哪一次活動；網頁用同樣方式算出檔名。"""
     return hashlib.sha256(f"{password}:{activity_id}".encode("utf-8")).hexdigest()[:20] + ".enc.json"
+
+
+def polyline_rows(raw):
+    """逐點資料沒有經緯度時，改用 Garmin 另外提供的路線折線，距離自己累加。"""
+    pts = ((raw.get("geoPolylineDTO") or {}).get("polyline")) or []
+    out, d, prev = [], 0.0, None
+    for p in pts:
+        lat, lon = p.get("lat"), p.get("lon")
+        if lat is None or lon is None:
+            continue
+        if prev:
+            dy = math.radians(lat - prev[0])
+            dx = math.radians(lon - prev[1]) * math.cos(math.radians((lat + prev[0]) / 2))
+            d += 6371.0 * math.hypot(dx, dy)
+        out.append({"lat": lat, "lon": lon, "d": d})
+        prev = (lat, lon)
+    return out
 
 
 def fetch_details(api, runs, password):
@@ -136,9 +163,16 @@ def fetch_details(api, runs, password):
             continue
         path = os.path.join(DETAIL_DIR, detail_name(r["id"], password))
         if os.path.exists(path):
-            continue
+            try:
+                with open(path, encoding="utf-8") as f:
+                    old = decrypt(json.load(f), password)
+            except Exception:
+                old = None
+            # 加入路線之前抓的明細沒有 route，補抓一次
+            if old is None or "route" in old:
+                continue
         try:
-            d = to_detail(api.get_activity_details(r["id"], maxchart=4000, maxpoly=0))
+            d = to_detail(api.get_activity_details(r["id"], maxchart=4000, maxpoly=4000))
         except Exception as e:
             print(f"抓不到 {r['date']} 的明細：{e}")
             continue
