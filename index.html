@@ -208,6 +208,13 @@ button.pb:disabled{cursor:default}
 .ovread b{color:var(--fg);font-weight:600}
 .ovread span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:5px}
 
+/* table filter */
+.filt{display:flex;flex-direction:column;gap:10px}
+.filt .chip{--c:var(--s1);padding:5px 11px;font-size:13px}
+.frow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)}
+.frow select{font:inherit;color:var(--fg);background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:6px 8px}
+#recDist .zrow{cursor:pointer}
+
 /* settings */
 .list{display:flex;flex-direction:column;background:var(--panel);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
 .li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--grid);min-height:52px}
@@ -400,6 +407,7 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
     <section class="card">
       <div class="ph"><h3>距離分布</h3><span class="note">每次跑步依距離分類</span></div>
       <div class="zones" id="recDist"></div>
+      <p class="note">點一個區間，下方的跑步紀錄就會只列出那些跑步。</p>
     </section>
     <section class="card">
       <div class="ph"><h3>距離成績</h3><span class="note">點類別看前三名</span></div>
@@ -409,6 +417,15 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
     </section>
     <section class="card">
       <div class="ph"><h3>跑步紀錄</h3><span class="note" id="tblNote"></span></div>
+      <div class="filt">
+        <div class="chips" id="fDist" role="group" aria-label="里程篩選"></div>
+        <div class="frow">
+          <label for="fPmin">配速</label><select id="fPmin" aria-label="最快配速"></select><span>到</span><select id="fPmax" aria-label="最慢配速"></select>
+          <select id="fSort" aria-label="排序"><option value="date">最新優先</option><option value="pace">最快優先</option><option value="dist">最遠優先</option></select>
+          <button type="button" class="linkbtn" id="fClear" hidden>清除篩選</button>
+        </div>
+        <p class="status-txt" id="fSum"></p>
+      </div>
       <div class="tbl"><table id="tbl"><thead><tr>
         <th>日期</th><th>標題</th><th class="n">距離 km</th><th class="n">時間</th><th class="n">配速 /km</th><th class="n">平均心率</th><th class="n">步頻</th><th class="n">爬升 m</th><th class="n">有氧 TE</th>
       </tr></thead><tbody></tbody></table></div>
@@ -824,6 +841,12 @@ function renderZones(cur){
   $('#zones').innerHTML=Z.map((z,i)=>{const pct=acc[i].s/total*100;return`<div class="zrow"><div class="zl"><b>${z[0]}</b> ${z[1]}<span>${Math.round(mx*z[2])}${i<4?'–'+(Math.round(mx*z[3])-1):'+'} bpm</span></div><div class="ztrack"><div class="zbar" style="width:${pct.toFixed(1)}%;background:var(--z${i+1})"></div></div><div class="zv">${pct.toFixed(0)}% · ${fmtHours(acc[i].s)}h · ${acc[i].n}次</div></div>`}).join('');
 }
 
+const DIST_B=[['5K 以下',0,4.9],['5–10K',4.9,9.8],['10K–半馬',9.8,20.7],['半馬以上',20.7,1e9]];
+const FILT={dist:null,pmin:0,pmax:0,sort:'date'};
+const PACES=[];for(let s=240;s<=600;s+=15)PACES.push(s);
+['fPmin','fPmax'].forEach((id,k)=>{const sel=$('#'+id);sel.append(new Option(k?'最慢不限':'最快不限',0),...PACES.map(v=>new Option(fmtPace(v),v)));sel.onchange=()=>{FILT[k?'pmax':'pmin']=+sel.value;TBL_N=20;renderTable()}});
+$('#fSort').onchange=e=>{FILT.sort=e.target.value;TBL_N=20;renderTable()};
+$('#fClear').onclick=()=>{FILT.dist=null;FILT.pmin=FILT.pmax=0;$('#fPmin').value=$('#fPmax').value=0;TBL_N=20;renderTable()};
 const PB_D=[['3K',3],['5K',5],['10K',10],['半馬',21.0975],['全馬',42.195]];let PB_OPEN=null,TBL_N=20;
 function topN(km,n){return RUNS.filter(r=>r.dist>=km*.98).map(r=>({r,p:r.secs/r.dist})).sort((a,b)=>a.p-b.p).slice(0,n)}
 function renderRecords(){
@@ -833,11 +856,12 @@ function renderRecords(){
   $('#recKpis').replaceChildren(...k.map(([t,v,u,d])=>{const e=document.createElement('div');e.className='kpi';
     const a=document.createElement('span');a.className='k';a.textContent=t;const b=document.createElement('span');b.className='v';b.textContent=v;const sm=document.createElement('small');sm.textContent=u;b.append(sm);
     const c=document.createElement('span');c.className='d';c.textContent=d||`平均每次 ${all.length?(km/all.length).toFixed(1):0} km`;if(t!=='總次數'&&!d)c.textContent='';e.append(a,b,c);return e}));
-  const B=[['5K 以下',0,4.9],['5–10K',4.9,9.8],['10K–半馬',9.8,20.7],['半馬以上',20.7,1e9]],cnt=B.map(([,a,b])=>all.filter(r=>r.dist>=a&&r.dist<b).length),mx=Math.max(1,...cnt);
+  const B=DIST_B,cnt=B.map(([,a,b])=>all.filter(r=>r.dist>=a&&r.dist<b).length),mx=Math.max(1,...cnt);
   $('#recDist').replaceChildren(...B.map(([n],i)=>{const row=document.createElement('div');row.className='zrow';
     const l=document.createElement('div');l.className='zl';const lb=document.createElement('b');lb.textContent=n;l.append(lb);
     const tr=document.createElement('div');tr.className='ztrack';const bar=document.createElement('div');bar.className='zbar';bar.style.cssText=`width:${cnt[i]/mx*100}%;background:var(--z${i+2})`;tr.append(bar);
-    const v=document.createElement('div');v.className='zv';v.textContent=`${cnt[i]} 次 · ${all.length?Math.round(cnt[i]/all.length*100):0}%`;row.append(l,tr,v);return row}));
+    const v=document.createElement('div');v.className='zv';v.textContent=`${cnt[i]} 次 · ${all.length?Math.round(cnt[i]/all.length*100):0}%`;row.append(l,tr,v);
+    row.title='看這個區間的跑步';row.onclick=()=>{FILT.dist=i;TBL_N=20;renderTable();$('#tbl').closest('.card').scrollIntoView({behavior:'smooth'})};return row}));
   $('#pbs').replaceChildren(...PB_D.map(([n,dk])=>{const t=topN(dk,3),b=document.createElement('button');b.type='button';b.className='pb';
     const kk=document.createElement('span');kk.className='k';kk.textContent=n+(t.length?` · ${RUNS.filter(r=>r.dist>=dk*.98).length} 次`:'');
     const v=document.createElement('span');v.className='v';const m=document.createElement('span');m.className='m';
@@ -855,7 +879,15 @@ function renderRecords(){
 }
 
 function renderTable(){
-  const allr=RUNS.slice().sort((a,b)=>b.date-a.date),rs=allr.slice(0,TBL_N),tb=$('#tbl tbody');tb.replaceChildren();
+  const lo=Math.min(FILT.pmin||0,FILT.pmax||1e9),hi=Math.max(FILT.pmin||0,FILT.pmax||1e9),B=FILT.dist!=null?DIST_B[FILT.dist]:null;
+  const allr=RUNS.filter(r=>{const p=r.secs/r.dist;return(!B||(r.dist>=B[1]&&r.dist<B[2]))&&(!FILT.pmin||p>=lo)&&(!FILT.pmax||p<hi+1)})
+    .sort(FILT.sort==='pace'?(a,b)=>a.secs/a.dist-b.secs/b.dist:FILT.sort==='dist'?(a,b)=>b.dist-a.dist:(a,b)=>b.date-a.date);
+  const rs=allr.slice(0,TBL_N),tb=$('#tbl tbody');tb.replaceChildren();
+  const on=B||FILT.pmin||FILT.pmax;
+  $('#fDist').replaceChildren(...[['全部',null],...DIST_B.map((b,i)=>[b[0],i])].map(([n,i])=>{const c=document.createElement('button');c.type='button';c.className='chip';c.textContent=n;c.setAttribute('aria-pressed',FILT.dist===i);c.onclick=()=>{FILT.dist=i;TBL_N=20;renderTable()};return c}));
+  $('#fClear').hidden=!on;
+  const km=sum(allr,r=>r.dist),sc=sum(allr,r=>r.secs),hrs=allr.filter(r=>r.avgHr);
+  $('#fSum').textContent=allr.length?`${on?'符合條件':'全部'} ${allr.length} 次 · ${km.toFixed(1)} km · 平均配速 ${fmtPace(sc/km)}/km${hrs.length?` · 平均心率 ${Math.round(meanOf(hrs.map(r=>r.avgHr)))}`:''}`:'沒有符合條件的跑步，試著放寬配速範圍。';
   $('#tblNote').textContent=`顯示 ${rs.length} / ${allr.length} 筆 · 點一列看明細`;$('#tblMore').hidden=rs.length>=allr.length;
   for(const r of rs){const tr=document.createElement('tr');
     const cells=[[fmtDate(r.date),''],[r.title,''],[r.dist.toFixed(2),'n'],[fmtDur(r.secs),'n'],[fmtPace(r.secs/r.dist),'n'],[r.avgHr?Math.round(r.avgHr):'—','n'],[r.cad?Math.round(r.cad):'—','n'],[r.ascent!=null?Math.round(r.ascent):'—','n'],[r.te!=null?r.te:'—','n']];
