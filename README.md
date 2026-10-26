@@ -22,6 +22,17 @@ repo 裡的 GitHub Actions（`.github/workflows/sync-garmin.yml`）每天台灣�
 3. 打開 https://github.com/Eastsheep/Running-Channing/actions ，點左側的「同步 Garmin 跑步紀錄」，再按右邊的「Run workflow」→「Run workflow」，手動跑第一次。
 4. 大約一分鐘後出現綠色勾勾，就代表成功。打開看板網址，輸入 `DATA_PASSWORD` 就能看到資料。勾選「這台裝置記住密碼」，之後就不用再輸入。
 
+### 立即同步（App 右上角的 ↻）
+
+不想等排程時，可以在 App 按 ↻ 馬上抓一次，大約 1～2 分鐘後自動載入新資料。第一次要給 App 一把只能觸發這個 repo 同步的 GitHub 權杖：
+
+1. GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate new token。
+2. Repository access 選 **Only select repositories**，只勾 `Running-Channing`。
+3. Permissions → Repository permissions：**Actions** 設 Read and write，**Contents** 設 Read-only。其他不用動。
+4. 產生後複製 `github_pat_…`，貼到 App「設定 → 立即同步權杖」。
+
+權杖只存在那台裝置的瀏覽器，不會進 repo。萬一手機遺失，到同一頁把權杖刪掉即可；這把權杖最多只能觸發同步和讀取這個 repo，不能改程式或看 Secret。
+
 ### 注意
 
 - Secret 存進去之後，GitHub 不會再顯示內容，連 repo 擁有者也看不到，只有排程執行時才會用到。
