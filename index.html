@@ -220,6 +220,7 @@ button.pb:disabled{cursor:default}
 @media (min-width:900px){#map{height:420px}}
 .legend .grad{display:inline-block;width:72px;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--z1),var(--z3),var(--z5))}
 .leaflet-container{font:inherit}
+.tiles-dark{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}
 
 /* settings */
 .list{display:flex;flex-direction:column;background:var(--panel);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
@@ -1176,7 +1177,8 @@ async function renderMap(d,P){
   const css=getComputedStyle(document.documentElement),cv=n=>css.getPropertyValue(n).trim();
   const dark=matchMedia('(prefers-color-scheme: dark)').matches&&document.documentElement.dataset.theme!=='light'||document.documentElement.dataset.theme==='dark';
   MAP=L.map('map',{zoomControl:true,attributionControl:true,scrollWheelZoom:false});
-  L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark?'dark_all':'rastertiles/voyager'}/{z}/{x}/{y}{r}.png`,{maxZoom:19,subdomains:'abcd',attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(MAP);
+  // OpenStreetMap 官方圖磚不需要金鑰；深色模式用濾鏡把底圖調暗
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,className:dark?'tiles-dark':'',attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(MAP);
   // 依配速上色：用曲線資料找每個路線點附近的配速
   const pp=smooth(P.map(p=>[p[0],p[2]&&p[2]<1200?p[2]:null]),3).filter(p=>p[1]!=null),paceAt=km=>{let lo=0,hi=pp.length-1;while(lo<hi){const m=(lo+hi)>>1;if(pp[m][0]<km)lo=m+1;else hi=m}return pp[lo]?pp[lo][1]:null};
   const vs=pp.map(p=>p[1]).sort((a,b)=>a-b),fast=vs[Math.floor(vs.length*.1)]||0,slow=vs[Math.ceil(vs.length*.9)-1]||1,cols=['--z1','--z2','--z3','--z4','--z5'].map(cv);

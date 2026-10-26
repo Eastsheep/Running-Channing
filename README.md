@@ -47,7 +47,7 @@ repo 裡的 GitHub Actions（`.github/workflows/sync-garmin.yml`）每天台灣�
 
 - 明細來自自動同步：第一次會往回抓最近 100 次，之後每次新跑步都會自動加入。手動匯入的 CSV 只有整次平均，沒有明細。
 - 每次跑步一個加密檔，放在 `data/detail/`，檔名由資料密碼和活動編號雜湊而成；保留距離、時間、心率、步頻、海拔和 GPS 路線。
-- 明細頁的路線地圖依配速上色，底圖來自 OpenStreetMap／CARTO。想隱藏起終點附近（避免露出住家位置），把 `scripts/sync_garmin.py` 的 `ROUTE_TRIM_KM` 改成 `0.2`，刪掉 `data/detail/` 再 Run workflow。
+- 明細頁的路線地圖依配速上色，底圖來自 OpenStreetMap（免金鑰）。想隱藏起終點附近（避免露出住家位置），把 `scripts/sync_garmin.py` 的 `ROUTE_TRIM_KM` 改成 `0.2`，刪掉 `data/detail/` 再 Run workflow。
 - 如果改了 DATA_PASSWORD，刪掉 `data/detail/` 資料夾再 Run workflow，就會用新密碼重新產生。
 
 ## 用手機取得資料（iPhone）
