@@ -204,6 +204,9 @@ button.pb:disabled{cursor:default}
 .chip i{width:10px;height:10px;border-radius:50%;background:var(--c);opacity:.35}
 .chip[aria-pressed="true"]{color:var(--fg);border-color:var(--c);background:color-mix(in srgb,var(--c) 10%,var(--panel))}
 .chip[aria-pressed="true"] i{opacity:1}
+.ovread .hint{color:var(--muted)}
+.ovread span.hint::before{display:none}
+#ovChart,.ovread{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 .ovread{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;color:var(--muted);min-height:20px;font-variant-numeric:tabular-nums}
 .ovread b{color:var(--fg);font-weight:600}
 .ovread span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:5px}
@@ -1165,7 +1168,7 @@ function overlayChart(box,P){
   ser.slice().sort((p,q)=>(q.area?1:0)-(p.area?1:0)).forEach(o=>{const pts=o.pts.map(p=>x(p[0]).toFixed(1)+','+o.y(p[1]).toFixed(1));
     if(o.area)el('polygon',{points:`${x(o.pts[0][0])},${m.t+ih} ${pts.join(' ')} ${x(o.pts[o.pts.length-1][0])},${m.t+ih}`,fill:o.col,'fill-opacity':.14,stroke:'none'},svg);
     el('polyline',{points:pts.join(' '),fill:'none',stroke:o.col,'stroke-width':o.area?1.5:2,'stroke-linejoin':'round'},svg)});
-  const read=$('#ovRead'),show=d=>{read.replaceChildren(...[(()=>{const e=document.createElement('b');e.textContent=`${d.toFixed(2)} km`;return e})(),...ser.map(o=>{let best=o.pts[0];for(const p of o.pts)if(Math.abs(p[0]-d)<Math.abs(best[0]-d))best=p;
+  const read=$('#ovRead'),hint=()=>read.replaceChildren(hel('span','hint','手指在圖上左右滑動，看各點的數值')),show=d=>{read.replaceChildren(...[(()=>{const e=document.createElement('b');e.textContent=`${d.toFixed(2)} km`;return e})(),...ser.map(o=>{let best=o.pts[0];for(const p of o.pts)if(Math.abs(p[0]-d)<Math.abs(best[0]-d))best=p;
     const e=document.createElement('span');e.style.setProperty('--c',o.col);e.textContent=`${o.n} `;const b=document.createElement('b');b.textContent=`${o.fmt(best[1])} ${o.u}`;e.append(b);return e})])};
   const hv=el('line',{y1:m.t,y2:m.t+ih,stroke:'var(--muted)','stroke-dasharray':'3 3',visibility:'hidden'},svg),dots=ser.map(o=>el('circle',{r:4,fill:o.col,stroke:'var(--panel)','stroke-width':1.5,visibility:'hidden'},svg));
   const hr=el('rect',{x:m.l,y:m.t,width:iw,height:ih,fill:'transparent',style:'touch-action:pan-y'},svg);
@@ -1173,8 +1176,8 @@ function overlayChart(box,P){
     hv.setAttribute('x1',x(d));hv.setAttribute('x2',x(d));hv.setAttribute('visibility','visible');
     ser.forEach((o,i)=>{let best=o.pts[0];for(const p of o.pts)if(Math.abs(p[0]-d)<Math.abs(best[0]-d))best=p;dots[i].setAttribute('cx',x(best[0]));dots[i].setAttribute('cy',o.y(best[1]));dots[i].setAttribute('visibility','visible')});show(d);if(MAP_HOVER)MAP_HOVER(d)};
   hr.addEventListener('pointermove',move);hr.addEventListener('pointerdown',move);
-  hr.addEventListener('pointerleave',()=>{if(MAP_HOVER)MAP_HOVER(null);hv.setAttribute('visibility','hidden');dots.forEach(c=>c.setAttribute('visibility','hidden'));show(D)});
-  show(D);read.firstChild.textContent='全程終點';
+  hr.addEventListener('pointerleave',()=>{if(MAP_HOVER)MAP_HOVER(null);hv.setAttribute('visibility','hidden');dots.forEach(c=>c.setAttribute('visibility','hidden'));hint()});
+  hint();
   $('#ovNote').textContent=ser.length>2?'第 3 項以後沒有刻度，數值看下方讀數':ser.some(o=>o.invert)?'配速越上方越快':'勾選要比較的指標，最多 4 項';
 }
 function renderOvPick(P){
