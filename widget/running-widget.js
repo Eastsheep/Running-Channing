@@ -13,7 +13,7 @@ const APP_URL = "https://eastsheep.github.io/Running-Channing/";
 const KEY_NAME = "running-channing.widget.key";
 const SALT = "running-channing/widget/v1"; // 要和 scripts/sync_garmin.py 的 WIDGET_SALT 一樣
 const ITER = 250000;
-const VERSION = "2026-11-22.5"; // 每次改版就更新，App 選單會顯示，方便確認手機上是不是最新版
+const VERSION = "2026-11-22.6"; // 每次改版就更新，App 選單會顯示，方便確認手機上是不是最新版
 
 const GOAL_NAME = "running-channing.widget.goal";
 
@@ -449,7 +449,10 @@ function widgetWidth(family) {
 const innerWidth = family => widgetWidth(family) - PAD * 2;
 
 function buildSmall(w, s) {
-  header(w, "本週");
+  const sw = innerWidth("small");
+  // 小尺寸四角圓弧比較明顯，頂列和底列左右多內縮一點，看起來才不會貼邊
+  const inset = Math.round(sw / 14);
+  header(w, "本週").setPadding(0, inset, 0, inset);
   w.addSpacer(8);
   const row = w.addStack(); row.centerAlignContent();
   row.addSpacer();
@@ -463,12 +466,10 @@ function buildSmall(w, s) {
   row.addSpacer();
   w.addSpacer();
   const sr = w.addStack(); sr.addSpacer();
-  const sw = innerWidth("small");
   const strip = sr.addImage(dayStrip(s, sw, 30)); strip.imageSize = new Size(sw, 30);
   sr.addSpacer();
   w.addSpacer(5);
   // 底列左右內縮到和每日長條的第一、最後一根對齊，不要貼著邊
-  const inset = Math.max(4, Math.round(sw / 14) - 4);
   const f = w.addStack(); f.centerAlignContent(); f.setPadding(0, inset, 0, inset);
   text(f, `${s.weekN} 次`, F.semi(10), C.fg);
   f.addSpacer();
