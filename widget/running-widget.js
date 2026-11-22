@@ -437,14 +437,18 @@ function buildSmall(w, s) {
   header(w, "本週");
   w.addSpacer(8);
   const row = w.addStack(); row.centerAlignContent();
+  row.addSpacer();
   const ring = row.addImage(ringImage(s, 62, 7, [{ t: `${Math.round(s.pct * 100)}%`, font: F.num(14), h: 17 }]));
   ring.imageSize = new Size(62, 62);
   row.addSpacer(10);
   const col = row.addStack(); col.layoutVertically();
   text(col, fmtKm(s.weekKm), F.hero(28), C.fg);
   text(col, `/ ${fmtKm(s.goal)} km`, F.label(10), C.muted);
+  row.addSpacer();
   w.addSpacer();
-  const strip = w.addImage(dayStrip(s, 140, 30)); strip.imageSize = new Size(140, 30);
+  const sr = w.addStack(); sr.addSpacer();
+  const strip = sr.addImage(dayStrip(s, 140, 30)); strip.imageSize = new Size(140, 30);
+  sr.addSpacer();
   w.addSpacer(5);
   const f = w.addStack(); f.centerAlignContent();
   text(f, `${s.weekN} 次`, F.semi(10), C.fg);
@@ -465,14 +469,16 @@ function buildMedium(w, s) {
   const h = header(R, null); pill(h, s, 9);
   R.addSpacer(8);
   const g1 = R.addStack();
-  tile(g1, "跑步次數", String(s.weekN), "次", 88);
-  tile(g1, "平均配速", s.weekPace ? fmtPace(s.weekPace) : "—", "/km", 100); g1.addSpacer();
+  tile(g1, "跑步次數", String(s.weekN), "次", 88); g1.addSpacer();
+  tile(g1, "平均配速", s.weekPace ? fmtPace(s.weekPace) : "—", "/km", 92);
   R.addSpacer(6);
   const g2 = R.addStack();
-  tile(g2, "本週時間", s.weekSec ? fmtHM(s.weekSec) : "—", null, 88);
-  tile(g2, "本月跑量", fmtKm(s.monthKm), "km", 100); g2.addSpacer();
+  tile(g2, "本週時間", s.weekSec ? fmtHM(s.weekSec) : "—", null, 88); g2.addSpacer();
+  tile(g2, "本月跑量", fmtKm(s.monthKm), "km", 92);
   R.addSpacer();
-  const strip = R.addImage(dayStrip(s, 190, 28)); strip.imageSize = new Size(190, 28);
+  const sr = R.addStack(); sr.addSpacer();
+  const strip = sr.addImage(dayStrip(s, 190, 28)); strip.imageSize = new Size(190, 28);
+  sr.addSpacer();
 }
 
 function buildLarge(w, s) {
@@ -485,7 +491,7 @@ function buildLarge(w, s) {
     { t: "週目標", font: F.label(9), color: C.muted, h: 12 },
   ]));
   ring.imageSize = new Size(96, 96);
-  hero.addSpacer(14);
+  hero.addSpacer(16);
   const hc = hero.addStack(); hc.layoutVertically();
   text(hc, "本週跑量", F.label(10), C.muted);
   const kr = hc.addStack(); kr.bottomAlignContent();
