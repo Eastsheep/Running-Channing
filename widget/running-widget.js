@@ -607,6 +607,17 @@ async function setup() {
   return true;
 }
 
+// 從 GitHub 下載最新版覆蓋這支腳本本身
+async function selfUpdate() {
+  try {
+    const url = "https://raw.githubusercontent.com/Eastsheep/Running-Channing/main/widget/running-widget.js?t=" + Date.now();
+    const code = await new Request(url).loadString();
+    if (!code.includes("buildWidget")) throw new Error("下載的內容不對");
+    FileManager.local().writeString(module.filename, code);
+    await notify("已更新", "關掉後再點一次這支腳本，就是最新版。");
+  } catch (e) { await notify("更新失敗", String(e.message || e)); }
+}
+
 async function setGoal() {
   const a = new Alert();
   a.title = "每週跑量目標（km）";
@@ -628,12 +639,13 @@ async function menu() {
   const a = new Alert();
   a.title = "跑步承廷小工具";
   a.message = has ? "密碼已設定。長按桌面 → 編輯 → 加入 Scriptable 小工具，Script 選這支。" : "第一次使用，請先設定資料密碼。";
-  const opts = has ? ["預覽小", "預覽中", "預覽大", "設定週目標", "重新設定密碼", "清除密碼"] : ["設定密碼"];
+  const opts = has ? ["預覽小", "預覽中", "預覽大", "設定週目標", "更新到最新版", "重新設定密碼", "清除密碼"] : ["設定密碼"];
   opts.forEach(o => a.addAction(o)); a.addCancelAction("關閉");
   const i = await a.present();
   if (i === -1) return;
   const o = opts[i];
   if (o === "設定密碼" || o === "重新設定密碼") { if (await setup()) await (await buildWidget("medium")).presentMedium(); }
+  else if (o === "更新到最新版") await selfUpdate();
   else if (o === "設定週目標") { await setGoal(); await (await buildWidget("medium")).presentMedium(); }
   else if (o === "清除密碼") { Keychain.remove(KEY_NAME); if (fm.fileExists(CACHE)) fm.remove(CACHE); }
   else {
