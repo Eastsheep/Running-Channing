@@ -115,7 +115,7 @@ Garmin Connect App 本身沒有匯出功能，要改用 Safari 開網頁版：
 1. 先確認自動同步至少跑過一次（這個功能加入後的第一次同步，repo 的 `data/` 裡會多出 `widget.enc.json`）。等不及的話，在 Actions 手動 Run workflow 或在 App 按 ↻。
 2. 從 App Store 安裝 **Scriptable**，打開後按右上角 **＋** 新增一支腳本，貼上下面這段，按右下角 ▶ 執行：
    ```js
-   const url = "https://raw.githubusercontent.com/Eastsheep/Running-Channing/main/widget/running-widget.js";
+   const url = "https://raw.githubusercontent.com/Eastsheep/Running-Channing/main/widget/running-widget.js?t=" + Date.now(); // 加時間避免拿到快取的舊版
    const code = await new Request(url).loadString();
    const icloud = module.filename.includes("Mobile Documents");
    const fm = icloud ? FileManager.iCloud() : FileManager.local();
