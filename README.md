@@ -94,3 +94,39 @@ Garmin Connect App 本身沒有匯出功能，要改用 Safari 開網頁版：
 ## 加入 iPhone 主畫面
 
 用 Safari 打開網址，按下方的分享鍵，選「加入主畫面」。主畫面上會出現「跑步承廷」的圖示，點開後會全螢幕顯示，不會有瀏覽器的網址列。
+
+## 桌面小工具（Scriptable）
+
+用免費的 [Scriptable](https://apps.apple.com/app/scriptable/id1405459188) App，把本週跑量、近 8 週長條、最近一次跑步放到 iPhone 主畫面或鎖定畫面。點小工具會打開看板。
+
+| 尺寸 | 顯示內容 |
+|---|---|
+| 小 | 本週跑量、次數、和上週同期比較、近 8 週長條、最近一次 |
+| 中 | 左：本週跑量＋近 8 週長條（橘色虛線是近 4 週平均）＋本月跑量；右：最近一次的距離、配速、時間、平均心率 |
+| 大 | 中尺寸的內容，加上 AI 教練一句話總結和最近 5 次跑步 |
+| 鎖定畫面 | 長方形（本週跑量＋最近一次）、圓形（本週公里數）、單行 |
+
+小工具讀的是自動同步另外產生的 `data/widget.enc.json`：只有最近 70 天的日期、標題、距離、時間和平均心率，沒有路線；一樣用 `DATA_PASSWORD` 加密。週跑量是在手機上依當下日期計算，換週時不用等同步。
+
+### 安裝（全部在 iPhone 上完成）
+
+1. 先確認自動同步至少跑過一次（這個功能加入後的第一次同步，repo 的 `data/` 裡會多出 `widget.enc.json`）。等不及的話，在 Actions 手動 Run workflow 或在 App 按 ↻。
+2. 從 App Store 安裝 **Scriptable**，打開後按右上角 **＋** 新增一支腳本，貼上下面三行，按右下角 ▶ 執行：
+   ```js
+   const code = await new Request("https://raw.githubusercontent.com/Eastsheep/Running-Channing/main/widget/running-widget.js").loadString();
+   const fm = FileManager.iCloud(); fm.writeString(fm.joinPath(fm.documentsDirectory(), "跑步承廷.js"), code);
+   Script.complete();
+   ```
+   執行完會多一支「跑步承廷」腳本。這支安裝用的腳本可以留著，以後小工具改版時再按一次 ▶ 就會更新。（如果 Scriptable 沒開 iCloud，把 `FileManager.iCloud()` 改成 `FileManager.local()`。）
+3. 點開「跑步承廷」腳本，選「設定密碼」，輸入 `DATA_PASSWORD`。第一次會花幾秒到十幾秒推導金鑰，完成後會跳出中尺寸預覽。
+4. 回到主畫面，長按空白處 → 左上角 **＋** → 搜尋 **Scriptable** → 選小、中或大 → 加入小工具。
+5. 長按剛加入的小工具 → **編輯小工具** → Script 選「跑步承廷」。When Interacting 維持預設即可（點一下會打開看板）。
+
+鎖定畫面：長按鎖定畫面 → 自訂 → 鎖定畫面 → 點時間下方的小工具區 → 選 Scriptable → 一樣在設定裡把 Script 選成「跑步承廷」。
+
+### 注意
+
+- 金鑰存在 iOS 鑰匙圈，密碼本身不會存。要換手機或改了 `DATA_PASSWORD`，在 Scriptable 打開腳本選「重新設定密碼」。
+- iOS 會自己決定更新時機，大約每 30～60 分鐘一次；資料本身一天同步兩次（06:00、22:00），或在 App 按 ↻。
+- 沒有網路時會顯示上一次的資料，底部標示「離線」。
+- 為了讓手機每次更新都很快，這個檔案用固定的 salt 加密（主資料 `runs.enc.json` 每次換新的 salt）。安全性仍取決於 `DATA_PASSWORD` 的長度。
