@@ -13,7 +13,7 @@ const APP_URL = "https://eastsheep.github.io/Running-Channing/";
 const KEY_NAME = "running-channing.widget.key";
 const SALT = "running-channing/widget/v1"; // 要和 scripts/sync_garmin.py 的 WIDGET_SALT 一樣
 const ITER = 250000;
-const VERSION = "2026-11-22.4"; // 每次改版就更新，App 選單會顯示，方便確認手機上是不是最新版
+const VERSION = "2026-11-22.5"; // 每次改版就更新，App 選單會顯示，方便確認手機上是不是最新版
 
 const GOAL_NAME = "running-channing.widget.goal";
 
@@ -467,7 +467,9 @@ function buildSmall(w, s) {
   const strip = sr.addImage(dayStrip(s, sw, 30)); strip.imageSize = new Size(sw, 30);
   sr.addSpacer();
   w.addSpacer(5);
-  const f = w.addStack(); f.centerAlignContent();
+  // 底列左右內縮到和每日長條的第一、最後一根對齊，不要貼著邊
+  const inset = Math.max(4, Math.round(sw / 14) - 4);
+  const f = w.addStack(); f.centerAlignContent(); f.setPadding(0, inset, 0, inset);
   text(f, `${s.weekN} 次`, F.semi(10), C.fg);
   f.addSpacer();
   pill(f, s, 9);
