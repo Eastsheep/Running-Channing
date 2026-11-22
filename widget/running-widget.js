@@ -433,21 +433,37 @@ function tile(stack, label, value, unit, width) {
   return t;
 }
 
+// 各機型的小工具寬度（pt）。圖片是固定像素，太寬會把版面擠歪，所以依手機算出內容可用寬度。
+const PAD = 14;
+function widgetWidth(family) {
+  const sz = Device.screenSize(), W = Math.min(sz.width, sz.height), H = Math.max(sz.width, sz.height);
+  const table = [ // [螢幕寬, 螢幕高, 小, 中/大寬]
+    [430, 932, 170, 364], [428, 926, 170, 364], [440, 956, 170, 364], [414, 896, 169, 360], [402, 874, 164, 348],
+    [414, 736, 159, 348], [393, 852, 158, 338], [390, 844, 158, 338], [375, 812, 155, 329], [375, 667, 148, 321], [320, 568, 141, 292],
+  ];
+  const hit = table.find(t => t[0] === W && t[1] === H) || table.find(t => t[0] === W);
+  const small = hit ? hit[2] : Math.round(W * 0.4), wide = hit ? hit[3] : Math.round(W * 0.86);
+  return family === "small" ? small : wide;
+}
+const innerWidth = family => widgetWidth(family) - PAD * 2;
+
 function buildSmall(w, s) {
   header(w, "本週");
   w.addSpacer(8);
   const row = w.addStack(); row.centerAlignContent();
   row.addSpacer();
-  const ring = row.addImage(ringImage(s, 62, 7, [{ t: `${Math.round(s.pct * 100)}%`, font: F.num(14), h: 17 }]));
-  ring.imageSize = new Size(62, 62);
-  row.addSpacer(10);
+  const rs = innerWidth("small") < 136 ? 56 : 62;
+  const ring = row.addImage(ringImage(s, rs, 7, [{ t: `${Math.round(s.pct * 100)}%`, font: F.num(13), h: 16 }]));
+  ring.imageSize = new Size(rs, rs);
+  row.addSpacer(8);
   const col = row.addStack(); col.layoutVertically();
   text(col, fmtKm(s.weekKm), F.hero(28), C.fg);
   text(col, `/ ${fmtKm(s.goal)} km`, F.label(10), C.muted);
   row.addSpacer();
   w.addSpacer();
   const sr = w.addStack(); sr.addSpacer();
-  const strip = sr.addImage(dayStrip(s, 140, 30)); strip.imageSize = new Size(140, 30);
+  const sw = innerWidth("small");
+  const strip = sr.addImage(dayStrip(s, sw, 30)); strip.imageSize = new Size(sw, 30);
   sr.addSpacer();
   w.addSpacer(5);
   const f = w.addStack(); f.centerAlignContent();
@@ -458,26 +474,27 @@ function buildSmall(w, s) {
 
 function buildMedium(w, s) {
   const row = w.addStack(); row.centerAlignContent();
-  const ring = row.addImage(ringImage(s, 122, 11, [
+  const iw = innerWidth("medium"), rs = Math.min(122, Math.round(iw * 0.37)), rw = iw - rs - 14;
+  const ring = row.addImage(ringImage(s, rs, 11, [
     { t: fmtKm(s.weekKm), font: F.hero(30), h: 34 },
     { t: `/ ${fmtKm(s.goal)} km`, font: F.label(10), color: C.muted, h: 13 },
     { t: `${Math.round(s.pct * 100)}%`, font: F.semi(10), color: C.accent, h: 14 },
   ]));
-  ring.imageSize = new Size(122, 122);
+  ring.imageSize = new Size(rs, rs);
   row.addSpacer(14);
   const R = row.addStack(); R.layoutVertically();
   const h = header(R, null); pill(h, s, 9);
   R.addSpacer(8);
   const g1 = R.addStack();
-  tile(g1, "跑步次數", String(s.weekN), "次", 88); g1.addSpacer();
-  tile(g1, "平均配速", s.weekPace ? fmtPace(s.weekPace) : "—", "/km", 92);
+  tile(g1, "跑步次數", String(s.weekN), "次", Math.floor(rw * 0.47)); g1.addSpacer();
+  tile(g1, "平均配速", s.weekPace ? fmtPace(s.weekPace) : "—", "/km", Math.floor(rw * 0.47));
   R.addSpacer(6);
   const g2 = R.addStack();
-  tile(g2, "本週時間", s.weekSec ? fmtHM(s.weekSec) : "—", null, 88); g2.addSpacer();
-  tile(g2, "本月跑量", fmtKm(s.monthKm), "km", 92);
+  tile(g2, "本週時間", s.weekSec ? fmtHM(s.weekSec) : "—", null, Math.floor(rw * 0.47)); g2.addSpacer();
+  tile(g2, "本月跑量", fmtKm(s.monthKm), "km", Math.floor(rw * 0.47));
   R.addSpacer();
   const sr = R.addStack(); sr.addSpacer();
-  const strip = sr.addImage(dayStrip(s, 190, 28)); strip.imageSize = new Size(190, 28);
+  const strip = sr.addImage(dayStrip(s, rw, 28)); strip.imageSize = new Size(rw, 28);
   sr.addSpacer();
 }
 
@@ -509,7 +526,8 @@ function buildLarge(w, s) {
   const chart = w.addStack(); chart.layoutVertically(); chart.backgroundColor = C.card; chart.cornerRadius = 14; chart.setPadding(10, 12, 8, 12);
   const ct = chart.addStack(); text(ct, "近 8 週跑量", F.semi(10), C.fg); ct.addSpacer(); text(ct, `本月 ${fmtKm(s.monthKm)} km`, F.label(10), C.muted);
   chart.addSpacer(6);
-  const ci = chart.addImage(weekChart(s, 312, 58)); ci.imageSize = new Size(312, 58);
+  const cw = innerWidth("large") - 24;
+  const ci = chart.addImage(weekChart(s, cw, 58)); ci.imageSize = new Size(cw, 58);
   w.addSpacer(8);
   if (s.last) {
     const r = s.last, card = w.addStack(); card.backgroundColor = C.card; card.cornerRadius = 14; card.setPadding(9, 12, 9, 12); card.centerAlignContent();
@@ -551,7 +569,7 @@ async function buildWidget(family) {
   w.url = APP_URL;
   w.refreshAfterDate = new Date(Date.now() + 60 * 60 * 1000); // iOS 大約每小時更新一次
   const acc = family && family.startsWith("accessory");
-  if (!acc) { background(w); w.setPadding(14, 14, 14, 14); }
+  if (!acc) { background(w); w.setPadding(PAD, PAD, PAD, PAD); }
   const { data, stale, error } = await loadData();
   if (error) {
     if (!acc) header(w, null);
