@@ -111,13 +111,22 @@ Garmin Connect App 本身沒有匯出功能，要改用 Safari 開網頁版：
 ### 安裝（全部在 iPhone 上完成）
 
 1. 先確認自動同步至少跑過一次（這個功能加入後的第一次同步，repo 的 `data/` 裡會多出 `widget.enc.json`）。等不及的話，在 Actions 手動 Run workflow 或在 App 按 ↻。
-2. 從 App Store 安裝 **Scriptable**，打開後按右上角 **＋** 新增一支腳本，貼上下面三行，按右下角 ▶ 執行：
+2. 從 App Store 安裝 **Scriptable**，打開後按右上角 **＋** 新增一支腳本，貼上下面這段，按右下角 ▶ 執行：
    ```js
-   const code = await new Request("https://raw.githubusercontent.com/Eastsheep/Running-Channing/main/widget/running-widget.js").loadString();
-   const fm = FileManager.iCloud(); fm.writeString(fm.joinPath(fm.documentsDirectory(), "跑步承廷.js"), code);
+   const url = "https://raw.githubusercontent.com/Eastsheep/Running-Channing/main/widget/running-widget.js";
+   const code = await new Request(url).loadString();
+   const icloud = module.filename.includes("Mobile Documents");
+   const fm = icloud ? FileManager.iCloud() : FileManager.local();
+   const dir = module.filename.replace(/[^/]+$/, "");
+   fm.writeString(dir + "跑步承廷.js", code);
+   const a = new Alert();
+   a.title = "安裝完成";
+   a.message = "按左上角 Done 回到列表，會看到「跑步承廷」，點它設定密碼。";
+   a.addAction("好");
+   await a.present();
    Script.complete();
    ```
-   執行完會多一支「跑步承廷」腳本。這支安裝用的腳本可以留著，以後小工具改版時再按一次 ▶ 就會更新。（如果 Scriptable 沒開 iCloud，把 `FileManager.iCloud()` 改成 `FileManager.local()`。）
+   跳出「安裝完成」後按 Done，列表會多一支「跑步承廷」。它會存在和這支安裝腳本同一個資料夾，不管 Scriptable 有沒有開 iCloud 都看得到。這支安裝腳本可以留著，以後小工具改版時再按一次 ▶ 就會更新。
 3. 點開「跑步承廷」腳本，選「設定密碼」，輸入 `DATA_PASSWORD`。第一次會花幾秒到十幾秒推導金鑰，完成後會跳出中尺寸預覽。
 4. 回到主畫面，長按空白處 → 左上角 **＋** → 搜尋 **Scriptable** → 選小、中或大 → 加入小工具。
 5. 長按剛加入的小工具 → **編輯小工具** → Script 選「跑步承廷」。When Interacting 維持預設即可（點一下會打開看板）。
