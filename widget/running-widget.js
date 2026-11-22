@@ -13,7 +13,7 @@ const APP_URL = "https://eastsheep.github.io/Running-Channing/";
 const KEY_NAME = "running-channing.widget.key";
 const SALT = "running-channing/widget/v1"; // 要和 scripts/sync_garmin.py 的 WIDGET_SALT 一樣
 const ITER = 250000;
-const VERSION = "2026-11-22.6"; // 每次改版就更新，App 選單會顯示，方便確認手機上是不是最新版
+const VERSION = "2026-11-22.7"; // 每次改版就更新，App 選單會顯示，方便確認手機上是不是最新版
 
 const GOAL_NAME = "running-channing.widget.goal";
 
@@ -367,21 +367,22 @@ function ringImage(s, size, width, lines) {
 }
 
 // 本週一到日的每日跑量；今天的標籤用橘色
+// 本週一到日的每日跑量；第一根貼齊左緣、最後一根貼齊右緣，和上下其他內容切齊。今天的標籤用橘色
 function dayStrip(s, w, h) {
-  const dc = newCtx(w, h), n = 7, colW = w / n, labelH = 12, barMax = h - labelH - 3;
-  const max = Math.max(1, ...s.days.map(d => d.km));
+  const dc = newCtx(w, h), labelH = 12, barMax = h - labelH - 3, bw = 12;
+  const max = Math.max(1, ...s.days.map(d => d.km)), step = (w - bw) / 6;
   s.days.forEach((d, i) => {
-    const bw = Math.min(14, colW * 0.5), x = i * colW + (colW - bw) / 2;
+    const x = i * step, cx = x + bw / 2;
     if (d.km > 0) {
       const bh = Math.max(4, d.km / max * barMax);
-      const p = new Path(); p.addRoundedRect(new Rect(x, barMax - bh, bw, bh), bw / 2.5, bw / 2.5);
+      const p = new Path(); p.addRoundedRect(new Rect(x, barMax - bh, bw, bh), 4.5, 4.5);
       dc.addPath(p); dc.setFillColor(C.accent); dc.fillPath();
     } else {
       dc.setFillColor(d.future ? new Color("#ffffff", 0.08) : C.faint);
-      dc.fillEllipse(new Rect(i * colW + colW / 2 - 2, barMax - 4, 4, 4));
+      dc.fillEllipse(new Rect(cx - 2, barMax - 4, 4, 4));
     }
     dc.setFont(d.today ? F.semi(9) : F.label(9)); dc.setTextColor(d.today ? C.accent : C.muted); dc.setTextAlignedCenter();
-    dc.drawTextInRect(WD_MON[i], new Rect(i * colW, barMax + 2, colW, labelH));
+    dc.drawTextInRect(WD_MON[i], new Rect(cx - 8, barMax + 2, 16, labelH));
   });
   return dc.getImage();
 }
@@ -446,31 +447,27 @@ function widgetWidth(family) {
   const small = hit ? hit[2] : Math.round(W * 0.4), wide = hit ? hit[3] : Math.round(W * 0.86);
   return family === "small" ? small : wide;
 }
-const innerWidth = family => widgetWidth(family) - PAD * 2;
+const SMALL_PAD = 16; // 小尺寸圓角比例大，邊距多留一點
+const padFor = family => family === "small" ? SMALL_PAD : PAD;
+const innerWidth = family => widgetWidth(family) - padFor(family) * 2;
 
+// 小尺寸：所有內容對齊同一個框。左緣＝標題圖示、圓環、「一」、次數；右緣＝本週、公里數、「日」、比較標籤
 function buildSmall(w, s) {
   const sw = innerWidth("small");
-  // 小尺寸四角圓弧比較明顯，頂列和底列左右多內縮一點，看起來才不會貼邊
-  const inset = Math.round(sw / 14);
-  header(w, "本週").setPadding(0, inset, 0, inset);
+  header(w, "本週");
   w.addSpacer(8);
   const row = w.addStack(); row.centerAlignContent();
-  row.addSpacer();
-  const rs = innerWidth("small") < 136 ? 56 : 62;
+  const rs = sw < 130 ? 56 : 60;
   const ring = row.addImage(ringImage(s, rs, 7, [{ t: `${Math.round(s.pct * 100)}%`, font: F.num(13), h: 16 }]));
   ring.imageSize = new Size(rs, rs);
-  row.addSpacer(8);
+  row.addSpacer(6);
   const col = row.addStack(); col.layoutVertically();
-  text(col, fmtKm(s.weekKm), F.hero(28), C.fg);
-  text(col, `/ ${fmtKm(s.goal)} km`, F.label(10), C.muted);
-  row.addSpacer();
+  const r1 = col.addStack(); r1.addSpacer(); text(r1, fmtKm(s.weekKm), F.hero(28), C.fg);
+  const r2 = col.addStack(); r2.addSpacer(); text(r2, `/ ${fmtKm(s.goal)} km`, F.label(10), C.muted);
   w.addSpacer();
-  const sr = w.addStack(); sr.addSpacer();
-  const strip = sr.addImage(dayStrip(s, sw, 30)); strip.imageSize = new Size(sw, 30);
-  sr.addSpacer();
+  const strip = w.addImage(dayStrip(s, sw, 30)); strip.imageSize = new Size(sw, 30);
   w.addSpacer(5);
-  // 底列左右內縮到和每日長條的第一、最後一根對齊，不要貼著邊
-  const f = w.addStack(); f.centerAlignContent(); f.setPadding(0, inset, 0, inset);
+  const f = w.addStack(); f.centerAlignContent();
   text(f, `${s.weekN} 次`, F.semi(10), C.fg);
   f.addSpacer();
   pill(f, s, 9);
@@ -573,7 +570,7 @@ async function buildWidget(family) {
   w.url = APP_URL;
   w.refreshAfterDate = new Date(Date.now() + 60 * 60 * 1000); // iOS 大約每小時更新一次
   const acc = family && family.startsWith("accessory");
-  if (!acc) { background(w); w.setPadding(PAD, PAD, PAD, PAD); }
+  if (!acc) { background(w); { const p = padFor(family); w.setPadding(p, p, p, p); } }
   const { data, stale, error } = await loadData();
   if (error) {
     if (!acc) header(w, null);
