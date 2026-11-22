@@ -13,7 +13,7 @@ const APP_URL = "https://eastsheep.github.io/Running-Channing/";
 const KEY_NAME = "running-channing.widget.key";
 const SALT = "running-channing/widget/v1"; // 要和 scripts/sync_garmin.py 的 WIDGET_SALT 一樣
 const ITER = 250000;
-const VERSION = "2026-11-22.7"; // 每次改版就更新，App 選單會顯示，方便確認手機上是不是最新版
+const VERSION = "2026-11-22.8"; // 每次改版就更新，App 選單會顯示，方便確認手機上是不是最新版
 
 const GOAL_NAME = "running-channing.widget.goal";
 
@@ -419,9 +419,10 @@ function header(w, right) {
 function pill(stack, s, size = 10) {
   if (s.deltaPct == null && Math.abs(s.delta) < 0.05) return;
   const up = s.delta >= 0, p = stack.addStack();
-  p.backgroundColor = new Color(up ? "#3DDC97" : "#FF8A80", 0.18); p.cornerRadius = 7; p.setPadding(2, 6, 2, 6);
+  p.backgroundColor = new Color(up ? "#3DDC97" : "#FF8A80", 0.18); p.cornerRadius = 8; p.setPadding(2, 7, 2, 7);
   const v = s.deltaPct != null ? `${Math.round(Math.abs(s.deltaPct) * 100)}%` : `${Math.abs(s.delta).toFixed(1)} km`;
-  text(p, `${up ? "▲" : "▼"} ${v}`, F.semi(size), up ? C.up : C.down);
+  const t = text(p, `${up ? "▲" : "▼"} ${v}`, F.semi(size), up ? C.up : C.down);
+  t.minimumScaleFactor = 1; // 不讓 iOS 自動縮小
 }
 
 function tile(stack, label, value, unit, width) {
@@ -468,9 +469,9 @@ function buildSmall(w, s) {
   const strip = w.addImage(dayStrip(s, sw, 30)); strip.imageSize = new Size(sw, 30);
   w.addSpacer(5);
   const f = w.addStack(); f.centerAlignContent();
-  text(f, `${s.weekN} 次`, F.semi(10), C.fg);
+  text(f, `${s.weekN} 次`, F.semi(12), C.fg).minimumScaleFactor = 1;
   f.addSpacer();
-  pill(f, s, 9);
+  pill(f, s, 11);
 }
 
 function buildMedium(w, s) {
