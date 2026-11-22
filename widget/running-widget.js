@@ -6,6 +6,7 @@
 // 讀取 GitHub Actions 每天同步的 data/widget.enc.json（AES-256-GCM 加密），在手機上解密後顯示。
 // 第一次請在 Scriptable App 裡直接執行這個腳本，輸入資料密碼（DATA_PASSWORD）。
 // 支援尺寸：小、中、大，以及鎖定畫面（長方形、圓形、單行）。
+// 週目標：在桌面小工具的設定裡把 Parameter 填數字（例如 40），或在 App 裡選「設定週目標」；都沒設就用近 4 週平均。
 
 const DATA_URL = "https://raw.githubusercontent.com/Eastsheep/Running-Channing/main/data/widget.enc.json";
 const APP_URL = "https://eastsheep.github.io/Running-Channing/";
@@ -13,16 +14,21 @@ const KEY_NAME = "running-channing.widget.key";
 const SALT = "running-channing/widget/v1"; // 要和 scripts/sync_garmin.py 的 WIDGET_SALT 一樣
 const ITER = 250000;
 
-// ---------- 顏色（跟著系統淺色／深色切換） ----------
+const GOAL_NAME = "running-channing.widget.goal";
+
+// ---------- 品牌配色：深藍漸層底、橘色重點、白字（不隨淺色／深色模式改變，像一般運動 App 的小工具） ----------
 const C = {
-  bg: Color.dynamic(new Color("#ffffff"), new Color("#151a21")),
-  fg: Color.dynamic(new Color("#101828"), new Color("#eef1f5")),
-  muted: Color.dynamic(new Color("#5d6676"), new Color("#9aa5b1")),
-  grid: Color.dynamic(new Color("#eceff3"), new Color("#252c35")),
-  s1: Color.dynamic(new Color("#2a78d6"), new Color("#3987e5")),
-  s2: Color.dynamic(new Color("#eb6834"), new Color("#d95926")),
-  ok: Color.dynamic(new Color("#16794a"), new Color("#43b874")),
-  bad: Color.dynamic(new Color("#c3372c"), new Color("#ec6a5e")),
+  bgTop: new Color("#0B1426"),
+  bgBottom: new Color("#16325C"),
+  fg: Color.white(),
+  muted: new Color("#ffffff", 0.62),
+  faint: new Color("#ffffff", 0.14),
+  card: new Color("#ffffff", 0.08),
+  accent: new Color("#FF6A2B"),
+  accent2: new Color("#FFB347"),
+  blue: new Color("#5AB0FF"),
+  up: new Color("#3DDC97"),
+  down: new Color("#FF8A80"),
 };
 
 // =====================================================================
@@ -226,11 +232,22 @@ const parseDate = s => { const m = s.match(/(\d+)-(\d+)-(\d+)[ T](\d+):(\d+)/); 
 const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const monday = d => { const x = startOfDay(d); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
 const sumKm = rs => rs.reduce((a, r) => a + (r.dist || 0), 0);
+const sumSec = rs => rs.reduce((a, r) => a + (r.secs || 0), 0);
 const WD = ["日", "一", "二", "三", "四", "五", "六"];
+const WD_MON = ["一", "二", "三", "四", "五", "六", "日"];
 const fmtPace = s => { const t = Math.round(s); return `${Math.floor(t / 60)}'${String(t % 60).padStart(2, "0")}"`; };
 const fmtDur = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}` : `${m}:${String(x).padStart(2, "0")}`; };
+const fmtHM = s => { const h = Math.floor(s / 3600), m = Math.round(s % 3600 / 60); return h ? `${h}h${String(m).padStart(2, "0")}` : `${m}m`; };
 const fmtMD = d => `${d.getMonth() + 1}/${d.getDate()}`;
 const fmtKm = v => v >= 100 ? v.toFixed(0) : v.toFixed(1);
+
+// 週目標：桌面小工具的「Parameter」填數字優先，其次是 App 裡設定的，最後用近 4 週平均（取整到 5 km）
+function weeklyGoal(avg4) {
+  const p = parseFloat(typeof args !== "undefined" && args.widgetParameter);
+  if (p > 0) return p;
+  if (Keychain.contains(GOAL_NAME)) { const g = parseFloat(Keychain.get(GOAL_NAME)); if (g > 0) return g; }
+  return Math.max(10, Math.ceil(avg4 / 5) * 5);
+}
 
 function stats(data, now = new Date()) {
   const runs = data.runs.map(r => ({ ...r, d: parseDate(r.date) })).sort((a, b) => a.d - b.d);
@@ -239,20 +256,28 @@ function stats(data, now = new Date()) {
   const thisWeek = runs.filter(r => r.d >= wk);
   // 上週同期：上週一到「上週的這個時間點」，比較才公平
   const lastSame = runs.filter(r => r.d >= lastWk && r.d - lastWk <= elapsed);
-  const lastFull = runs.filter(r => r.d >= lastWk && r.d < wk);
   const weeks = [];
   for (let i = 7; i >= 0; i--) {
     const a = new Date(wk.getTime() - i * 7 * DAY), b = new Date(a.getTime() + 7 * DAY);
     weeks.push({ t: a, km: sumKm(runs.filter(r => r.d >= a && r.d < b)) });
   }
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const a = new Date(wk.getTime() + i * DAY), b = new Date(a.getTime() + DAY);
+    days.push({ km: sumKm(runs.filter(r => r.d >= a && r.d < b)), today: startOfDay(now).getTime() === a.getTime(), future: a > now });
+  }
   const mStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const month = runs.filter(r => r.d >= mStart);
+  const weekKm = sumKm(thisWeek), lastKm = sumKm(lastSame), weekSec = sumSec(thisWeek);
+  const avg4 = weeks.slice(3, 7).reduce((a, w) => a + w.km, 0) / 4;
+  const goal = weeklyGoal(avg4);
   return {
-    weekKm: sumKm(thisWeek), weekN: thisWeek.length,
-    delta: sumKm(thisWeek) - sumKm(lastSame), lastWeekKm: sumKm(lastFull),
-    avg4: weeks.slice(3, 7).reduce((a, w) => a + w.km, 0) / 4,
-    weeks, monthKm: sumKm(month), monthN: month.length,
-    last: runs[runs.length - 1], recent: runs.slice(-5).reverse(),
+    weekKm, weekN: thisWeek.length, weekSec, weekPace: weekKm ? weekSec / weekKm : null,
+    delta: weekKm - lastKm, deltaPct: lastKm > 0 ? (weekKm - lastKm) / lastKm : null,
+    goal, pct: weekKm / goal, avg4, weeks, days,
+    monthKm: sumKm(month), monthN: month.length,
+    longest: thisWeek.reduce((m, r) => Math.max(m, r.dist), 0),
+    last: runs[runs.length - 1], recent: runs.slice(-4).reverse(),
     headline: data.headline, updated: data.updated ? new Date(data.updated) : null,
   };
 }
@@ -287,124 +312,232 @@ async function loadData() {
 // =====================================================================
 // 畫面
 // =====================================================================
-function text(stack, str, size, color = C.fg, weight = "regular") {
+const F = {
+  hero: s => Font.heavyRoundedSystemFont(s),
+  num: s => Font.boldRoundedSystemFont(s),
+  semi: s => Font.semiboldRoundedSystemFont(s),
+  label: s => Font.mediumSystemFont(s),
+  body: s => Font.systemFont(s),
+};
+
+function text(stack, str, font, color = C.fg) {
   const t = stack.addText(str);
-  t.font = weight === "bold" ? Font.boldRoundedSystemFont(size) : weight === "semibold" ? Font.semiboldSystemFont(size) : Font.systemFont(size);
-  t.textColor = color; t.lineLimit = 1; t.minimumScaleFactor = 0.6;
+  t.font = font; t.textColor = color; t.lineLimit = 1; t.minimumScaleFactor = 0.5;
   return t;
 }
 
-// 近 8 週跑量長條圖，最後一根（本週）用藍色，虛線是近 4 週平均
-function weekBars(s, w, h) {
+function newCtx(w, h) {
   const dc = new DrawContext();
   dc.size = new Size(w, h); dc.opaque = false; dc.respectScreenScale = true;
-  const max = Math.max(1, ...s.weeks.map(x => x.km), s.avg4), n = s.weeks.length, gap = 4;
-  const bw = (w - gap * (n - 1)) / n;
-  s.weeks.forEach((x, i) => {
-    const bh = Math.max(2, x.km / max * (h - 2));
-    const p = new Path(); p.addRoundedRect(new Rect(i * (bw + gap), h - bh, bw, bh), 2, 2);
-    dc.addPath(p); dc.setFillColor(i === n - 1 ? C.s1 : C.grid); dc.fillPath();
-  });
-  if (s.avg4 > 0) {
-    const y = h - s.avg4 / max * (h - 2);
-    for (let x = 0; x < w; x += 6) { dc.setFillColor(C.s2); dc.fillRect(new Rect(x, y - 0.5, 3, 1.5)); }
+  return dc;
+}
+
+// 畫一段圓弧（Scriptable 沒有 arc，用折線近似），兩端補圓頭
+function arc(dc, cx, cy, r, from, to, width, color) {
+  if (to - from < 0.002) return;
+  const p = new Path(), steps = Math.max(8, Math.ceil((to - from) * 120));
+  for (let i = 0; i <= steps; i++) {
+    const a = (from + (to - from) * i / steps) * 2 * Math.PI - Math.PI / 2;
+    const pt = new Point(cx + r * Math.cos(a), cy + r * Math.sin(a));
+    if (i === 0) p.move(pt); else p.addLine(pt);
+  }
+  dc.addPath(p); dc.setStrokeColor(color); dc.setLineWidth(width); dc.strokePath();
+  dc.setFillColor(color);
+  for (const t of [from, to]) {
+    const a = t * 2 * Math.PI - Math.PI / 2;
+    dc.fillEllipse(new Rect(cx + r * Math.cos(a) - width / 2, cy + r * Math.sin(a) - width / 2, width, width));
+  }
+}
+
+// 週目標進度環；lines 是環中央要顯示的文字 [{t, font, color}]
+function ringImage(s, size, width, lines) {
+  const dc = newCtx(size, size), c = size / 2, r = c - width / 2 - 1;
+  arc(dc, c, c, r, 0, 0.9999, width, C.faint);
+  arc(dc, c, c, r, 0, Math.min(1, s.pct), width, C.accent);
+  if (s.pct > 1) arc(dc, c, c, r, 0, Math.min(1, s.pct - 1), width, C.accent2); // 超過目標的部分疊第二圈
+  const total = lines.reduce((a, l) => a + l.h, 0);
+  let y = c - total / 2;
+  for (const l of lines) {
+    dc.setFont(l.font); dc.setTextColor(l.color || C.fg); dc.setTextAlignedCenter();
+    dc.drawTextInRect(l.t, new Rect(0, y, size, l.h + 2));
+    y += l.h;
   }
   return dc.getImage();
 }
 
-function deltaText(s) {
-  if (Math.abs(s.delta) < 0.05) return "和上週同期持平";
-  return `比上週同期 ${s.delta > 0 ? "+" : "−"}${Math.abs(s.delta).toFixed(1)} km`;
+// 本週一到日的每日跑量；今天的標籤用橘色
+function dayStrip(s, w, h) {
+  const dc = newCtx(w, h), n = 7, colW = w / n, labelH = 12, barMax = h - labelH - 3;
+  const max = Math.max(1, ...s.days.map(d => d.km));
+  s.days.forEach((d, i) => {
+    const bw = Math.min(14, colW * 0.5), x = i * colW + (colW - bw) / 2;
+    if (d.km > 0) {
+      const bh = Math.max(4, d.km / max * barMax);
+      const p = new Path(); p.addRoundedRect(new Rect(x, barMax - bh, bw, bh), bw / 2.5, bw / 2.5);
+      dc.addPath(p); dc.setFillColor(C.accent); dc.fillPath();
+    } else {
+      dc.setFillColor(d.future ? new Color("#ffffff", 0.08) : C.faint);
+      dc.fillEllipse(new Rect(i * colW + colW / 2 - 2, barMax - 4, 4, 4));
+    }
+    dc.setFont(d.today ? F.semi(9) : F.label(9)); dc.setTextColor(d.today ? C.accent : C.muted); dc.setTextAlignedCenter();
+    dc.drawTextInRect(WD_MON[i], new Rect(i * colW, barMax + 2, colW, labelH));
+  });
+  return dc.getImage();
 }
 
-function lastRunBlock(stack, r, big) {
-  text(stack, `最近一次 · ${fmtMD(r.d)}（${WD[r.d.getDay()]}）`, 11, C.muted, "semibold");
-  stack.addSpacer(2);
-  const row = stack.addStack(); row.bottomAlignContent();
-  text(row, r.dist.toFixed(2), big ? 26 : 22, C.fg, "bold");
-  row.addSpacer(3);
-  text(row, "km", 12, C.muted, "semibold");
-  stack.addSpacer(2);
-  text(stack, `${fmtPace(r.secs / r.dist)}/km · ${fmtDur(r.secs)}`, 12, C.fg);
-  if (r.avgHr) text(stack, `平均心率 ${r.avgHr}`, 12, C.muted);
+// 近 8 週跑量：本週橘色，其他白色半透明，虛線是週目標
+function weekChart(s, w, h) {
+  const dc = newCtx(w, h), labelH = 12, top = 4, ch = h - labelH - top - 2, n = s.weeks.length;
+  const max = Math.max(1, ...s.weeks.map(x => x.km), s.goal) * 1.08, colW = w / n, bw = Math.min(18, colW * 0.55);
+  const y = v => top + ch - v / max * ch;
+  for (let x = 0; x < w; x += 7) { dc.setFillColor(new Color("#ffffff", 0.35)); dc.fillRect(new Rect(x, y(s.goal) - 0.5, 4, 1)); }
+  s.weeks.forEach((wk, i) => {
+    const x = i * colW + (colW - bw) / 2, bh = Math.max(3, wk.km / max * ch);
+    const p = new Path(); p.addRoundedRect(new Rect(x, top + ch - bh, bw, bh), 4, 4);
+    dc.addPath(p); dc.setFillColor(i === n - 1 ? C.accent : new Color("#ffffff", 0.28)); dc.fillPath();
+    if (i === n - 1 || i === 0) {
+      dc.setFont(F.label(9)); dc.setTextColor(i === n - 1 ? C.accent : C.muted); dc.setTextAlignedCenter();
+      dc.drawTextInRect(i === n - 1 ? "本週" : fmtMD(wk.t), new Rect(i * colW - 6, h - labelH, colW + 12, labelH));
+    }
+  });
+  return dc.getImage();
 }
 
-function footer(w, s, stale) {
+function header(w, right) {
+  const h = w.addStack(); h.centerAlignContent();
+  const sym = SFSymbol.named("figure.run"); sym.applyFont(Font.boldSystemFont(11));
+  const img = h.addImage(sym.image); img.imageSize = new Size(13, 13); img.tintColor = C.accent;
+  h.addSpacer(4);
+  text(h, "跑步承廷", F.semi(11), C.fg);
+  h.addSpacer();
+  if (right) text(h, right, F.label(10), C.muted);
+  return h;
+}
+
+function pill(stack, s, size = 10) {
+  if (s.deltaPct == null && Math.abs(s.delta) < 0.05) return;
+  const up = s.delta >= 0, p = stack.addStack();
+  p.backgroundColor = new Color(up ? "#3DDC97" : "#FF8A80", 0.18); p.cornerRadius = 7; p.setPadding(2, 6, 2, 6);
+  const v = s.deltaPct != null ? `${Math.round(Math.abs(s.deltaPct) * 100)}%` : `${Math.abs(s.delta).toFixed(1)} km`;
+  text(p, `${up ? "▲" : "▼"} ${v}`, F.semi(size), up ? C.up : C.down);
+}
+
+function tile(stack, label, value, unit, width) {
+  const t = stack.addStack(); t.layoutVertically();
+  if (width) t.size = new Size(width, 0); // 固定欄寬，兩列的數字才會對齊
+  text(t, label, F.label(9), C.muted);
+  t.addSpacer(1);
+  const r = t.addStack(); r.bottomAlignContent();
+  text(r, value, F.num(15), C.fg);
+  if (unit) { r.addSpacer(2); text(r, unit, F.label(9), C.muted); }
+  return t;
+}
+
+function buildSmall(w, s) {
+  header(w, "本週");
+  w.addSpacer(8);
+  const row = w.addStack(); row.centerAlignContent();
+  const ring = row.addImage(ringImage(s, 62, 7, [{ t: `${Math.round(s.pct * 100)}%`, font: F.num(14), h: 17 }]));
+  ring.imageSize = new Size(62, 62);
+  row.addSpacer(10);
+  const col = row.addStack(); col.layoutVertically();
+  text(col, fmtKm(s.weekKm), F.hero(28), C.fg);
+  text(col, `/ ${fmtKm(s.goal)} km`, F.label(10), C.muted);
   w.addSpacer();
-  const f = w.addStack();
-  const when = s.updated ? `${fmtMD(s.updated)} ${String(s.updated.getHours()).padStart(2, "0")}:${String(s.updated.getMinutes()).padStart(2, "0")}` : "";
-  text(f, `${stale ? "離線 · " : ""}Garmin 同步 ${when}`, 9, C.muted);
+  const strip = w.addImage(dayStrip(s, 140, 30)); strip.imageSize = new Size(140, 30);
+  w.addSpacer(5);
+  const f = w.addStack(); f.centerAlignContent();
+  text(f, `${s.weekN} 次`, F.semi(10), C.fg);
+  f.addSpacer();
+  pill(f, s, 9);
 }
 
-function buildSmall(w, s, stale) {
-  text(w, "本週跑量", 11, C.muted, "semibold");
-  const row = w.addStack(); row.bottomAlignContent();
-  text(row, fmtKm(s.weekKm), 30, C.fg, "bold"); row.addSpacer(3); text(row, "km", 12, C.muted, "semibold");
-  text(w, `${s.weekN} 次 · ${s.delta >= 0 ? "+" : "−"}${Math.abs(s.delta).toFixed(1)} vs 上週`, 11, s.delta >= 0 ? C.ok : C.muted);
-  w.addSpacer(6);
-  const img = w.addImage(weekBars(s, 130, 26)); img.imageSize = new Size(130, 26);
-  w.addSpacer(6);
-  if (s.last) text(w, `${fmtMD(s.last.d)} ${s.last.dist.toFixed(1)} km · ${fmtPace(s.last.secs / s.last.dist)}`, 11, C.fg);
-  footer(w, s, stale);
+function buildMedium(w, s) {
+  const row = w.addStack(); row.centerAlignContent();
+  const ring = row.addImage(ringImage(s, 122, 11, [
+    { t: fmtKm(s.weekKm), font: F.hero(30), h: 34 },
+    { t: `/ ${fmtKm(s.goal)} km`, font: F.label(10), color: C.muted, h: 13 },
+    { t: `${Math.round(s.pct * 100)}%`, font: F.semi(10), color: C.accent, h: 14 },
+  ]));
+  ring.imageSize = new Size(122, 122);
+  row.addSpacer(14);
+  const R = row.addStack(); R.layoutVertically();
+  const h = header(R, null); pill(h, s, 9);
+  R.addSpacer(8);
+  const g1 = R.addStack();
+  tile(g1, "跑步次數", String(s.weekN), "次", 88);
+  tile(g1, "平均配速", s.weekPace ? fmtPace(s.weekPace) : "—", "/km", 100); g1.addSpacer();
+  R.addSpacer(6);
+  const g2 = R.addStack();
+  tile(g2, "本週時間", s.weekSec ? fmtHM(s.weekSec) : "—", null, 88);
+  tile(g2, "本月跑量", fmtKm(s.monthKm), "km", 100); g2.addSpacer();
+  R.addSpacer();
+  const strip = R.addImage(dayStrip(s, 190, 28)); strip.imageSize = new Size(190, 28);
 }
 
-function buildMedium(w, s, stale) {
-  buildTop(w, s, false);
-  footer(w, s, stale);
-}
-
-function buildLarge(w, s, stale) {
-  buildTop(w, s, true);
+function buildLarge(w, s) {
+  const now = new Date();
+  header(w, `${fmtMD(now)}（${WD[now.getDay()]}）`);
   w.addSpacer(10);
-  if (s.headline) {
-    const h = w.addStack(); h.backgroundColor = C.grid; h.cornerRadius = 10; h.setPadding(8, 10, 8, 10);
-    const t = text(h, `教練：${s.headline}`, 12, C.fg); t.lineLimit = 3;
-    w.addSpacer(10);
+  const hero = w.addStack(); hero.centerAlignContent();
+  const ring = hero.addImage(ringImage(s, 96, 10, [
+    { t: `${Math.round(s.pct * 100)}%`, font: F.num(20), h: 24 },
+    { t: "週目標", font: F.label(9), color: C.muted, h: 12 },
+  ]));
+  ring.imageSize = new Size(96, 96);
+  hero.addSpacer(14);
+  const hc = hero.addStack(); hc.layoutVertically();
+  text(hc, "本週跑量", F.label(10), C.muted);
+  const kr = hc.addStack(); kr.bottomAlignContent();
+  text(kr, fmtKm(s.weekKm), F.hero(38), C.fg); kr.addSpacer(3); text(kr, `/ ${fmtKm(s.goal)} km`, F.label(11), C.muted);
+  const pr = hc.addStack(); pr.centerAlignContent();
+  pill(pr, s, 10); pr.addSpacer(6); text(pr, "比上週同期", F.label(10), C.muted);
+  if (s.headline) { hc.addSpacer(4); const t = text(hc, s.headline, F.body(10), C.muted); t.lineLimit = 2; }
+  w.addSpacer(12);
+  const tiles = w.addStack();
+  tile(tiles, "次數", String(s.weekN), "次"); tiles.addSpacer();
+  tile(tiles, "平均配速", s.weekPace ? fmtPace(s.weekPace) : "—", "/km"); tiles.addSpacer();
+  tile(tiles, "時間", s.weekSec ? fmtHM(s.weekSec) : "—"); tiles.addSpacer();
+  tile(tiles, "最長", s.longest ? s.longest.toFixed(1) : "—", "km");
+  w.addSpacer(12);
+  const chart = w.addStack(); chart.layoutVertically(); chart.backgroundColor = C.card; chart.cornerRadius = 14; chart.setPadding(10, 12, 8, 12);
+  const ct = chart.addStack(); text(ct, "近 8 週跑量", F.semi(10), C.fg); ct.addSpacer(); text(ct, `本月 ${fmtKm(s.monthKm)} km`, F.label(10), C.muted);
+  chart.addSpacer(6);
+  const ci = chart.addImage(weekChart(s, 312, 58)); ci.imageSize = new Size(312, 58);
+  w.addSpacer(8);
+  if (s.last) {
+    const r = s.last, card = w.addStack(); card.backgroundColor = C.card; card.cornerRadius = 14; card.setPadding(9, 12, 9, 12); card.centerAlignContent();
+    const l = card.addStack(); l.layoutVertically();
+    text(l, `最近一次 · ${fmtMD(r.d)}（${WD[r.d.getDay()]}）`, F.label(9), C.muted);
+    const tt = text(l, r.title, F.semi(12), C.fg); tt.lineLimit = 1;
+    card.addSpacer();
+    tile(card, "距離", r.dist.toFixed(2), "km"); card.addSpacer(10);
+    tile(card, "配速", fmtPace(r.secs / r.dist));
+    if (r.avgHr) { card.addSpacer(10); tile(card, "心率", String(r.avgHr)); }
   }
-  text(w, "最近跑步", 11, C.muted, "semibold");
-  w.addSpacer(4);
-  for (const r of s.recent) {
-    const row = w.addStack(); row.centerAlignContent();
-    text(row, `${fmtMD(r.d)}（${WD[r.d.getDay()]}）`, 12, C.muted).font = Font.monospacedDigitSystemFont(12);
-    row.addSpacer(8);
-    const t = text(row, r.title, 12, C.fg); t.lineLimit = 1;
-    row.addSpacer();
-    text(row, `${r.dist.toFixed(1)} km · ${fmtPace(r.secs / r.dist)}`, 12, C.fg, "semibold");
-    w.addSpacer(3);
-  }
-  footer(w, s, stale);
-}
-
-// 中、大尺寸共用的上半部：左邊本週跑量和近 8 週長條，右邊最近一次跑步
-function buildTop(w, s, big) {
-  const top = w.addStack();
-  const L = top.addStack(); L.layoutVertically();
-  text(L, "本週跑量", 11, C.muted, "semibold");
-  const row = L.addStack(); row.bottomAlignContent();
-  text(row, fmtKm(s.weekKm), big ? 34 : 32, C.fg, "bold"); row.addSpacer(3); text(row, "km", 13, C.muted, "semibold");
-  text(L, `${s.weekN} 次 · ${deltaText(s)}`, 11, s.delta >= 0 ? C.ok : C.muted);
-  L.addSpacer(6);
-  const bw = big ? 150 : 140, bh = big ? 34 : 30;
-  const img = L.addImage(weekBars(s, bw, bh)); img.imageSize = new Size(bw, bh);
-  L.addSpacer(3);
-  text(L, `近 8 週 · 本月 ${fmtKm(s.monthKm)} km${big ? ` · ${s.monthN} 次` : ""}`, 10, C.muted);
-  top.addSpacer();
-  const R = top.addStack(); R.layoutVertically();
-  if (s.last) lastRunBlock(R, s.last, big);
 }
 
 function buildAccessory(w, s, family) {
   if (family === "accessoryInline") {
-    text(w, `本週 ${fmtKm(s.weekKm)} km · ${s.weekN} 次`, 12);
+    text(w, `本週 ${fmtKm(s.weekKm)}/${fmtKm(s.goal)} km`, F.semi(12), C.fg);
   } else if (family === "accessoryCircular") {
-    w.addAccessoryWidgetBackground = true;
-    const t1 = text(w, fmtKm(s.weekKm), 16, Color.white(), "bold"); t1.centerAlignText();
-    const t2 = text(w, "本週km", 9, Color.white()); t2.centerAlignText();
+    const img = w.addImage(ringImage(s, 60, 6, [
+      { t: fmtKm(s.weekKm), font: F.num(15), color: Color.white(), h: 17 },
+      { t: "km", font: F.label(8), color: Color.white(), h: 10 },
+    ]));
+    img.imageSize = new Size(60, 60);
   } else {
-    text(w, `本週 ${fmtKm(s.weekKm)} km · ${s.weekN} 次`, 14, Color.white(), "semibold");
-    text(w, deltaText(s), 12, Color.white());
-    if (s.last) text(w, `${fmtMD(s.last.d)} ${s.last.dist.toFixed(1)} km ${fmtPace(s.last.secs / s.last.dist)}`, 12, Color.white());
+    text(w, `本週 ${fmtKm(s.weekKm)} / ${fmtKm(s.goal)} km`, F.num(14), Color.white());
+    text(w, `${s.weekN} 次 · 完成 ${Math.round(s.pct * 100)}%`, F.label(12), Color.white());
+    if (s.last) text(w, `最近 ${fmtMD(s.last.d)} ${s.last.dist.toFixed(1)} km ${fmtPace(s.last.secs / s.last.dist)}`, F.label(12), Color.white());
   }
+}
+
+function background(w) {
+  const g = new LinearGradient();
+  g.colors = [C.bgTop, C.bgBottom]; g.locations = [0, 1];
+  g.startPoint = new Point(0, 0); g.endPoint = new Point(1, 1);
+  w.backgroundGradient = g;
 }
 
 async function buildWidget(family) {
@@ -412,18 +545,21 @@ async function buildWidget(family) {
   w.url = APP_URL;
   w.refreshAfterDate = new Date(Date.now() + 60 * 60 * 1000); // iOS 大約每小時更新一次
   const acc = family && family.startsWith("accessory");
-  if (!acc) { w.backgroundColor = C.bg; w.setPadding(14, 14, 12, 14); }
+  if (!acc) { background(w); w.setPadding(14, 14, 14, 14); }
   const { data, stale, error } = await loadData();
   if (error) {
-    text(w, "跑步承廷", 13, acc ? Color.white() : C.s1, "bold");
-    const t = text(w, error, 11, acc ? Color.white() : C.muted); t.lineLimit = 4;
+    if (!acc) header(w, null);
+    w.addSpacer(6);
+    const t = text(w, error, F.label(11), acc ? Color.white() : C.muted); t.lineLimit = 4;
+    if (!acc) w.addSpacer();
     return w;
   }
   const s = stats(data);
   if (acc) buildAccessory(w, s, family);
-  else if (family === "large") buildLarge(w, s, stale);
-  else if (family === "medium") buildMedium(w, s, stale);
-  else buildSmall(w, s, stale);
+  else if (family === "large") buildLarge(w, s);
+  else if (family === "medium") buildMedium(w, s);
+  else buildSmall(w, s);
+  if (stale && !acc) { w.addSpacer(2); text(w, "離線 · 顯示上次的資料", F.label(8), C.muted); }
   return w;
 }
 
@@ -465,6 +601,17 @@ async function setup() {
   return true;
 }
 
+async function setGoal() {
+  const a = new Alert();
+  a.title = "每週跑量目標（km）";
+  a.message = "留白就用近 4 週平均。每個小工具也可以在 Parameter 欄位填數字，覆蓋這個設定。";
+  a.addTextField("例如 40", Keychain.contains(GOAL_NAME) ? Keychain.get(GOAL_NAME) : "");
+  a.addAction("儲存"); a.addCancelAction("取消");
+  if (await a.present() === -1) return;
+  const v = parseFloat(a.textFieldValue(0));
+  if (v > 0) Keychain.set(GOAL_NAME, String(v)); else if (Keychain.contains(GOAL_NAME)) Keychain.remove(GOAL_NAME);
+}
+
 async function notify(title, message) {
   const a = new Alert(); a.title = title; a.message = message; a.addAction("好"); await a.present();
   return false;
@@ -475,12 +622,13 @@ async function menu() {
   const a = new Alert();
   a.title = "跑步承廷小工具";
   a.message = has ? "密碼已設定。長按桌面 → 編輯 → 加入 Scriptable 小工具，Script 選這支。" : "第一次使用，請先設定資料密碼。";
-  const opts = has ? ["預覽小", "預覽中", "預覽大", "重新設定密碼", "清除密碼"] : ["設定密碼"];
+  const opts = has ? ["預覽小", "預覽中", "預覽大", "設定週目標", "重新設定密碼", "清除密碼"] : ["設定密碼"];
   opts.forEach(o => a.addAction(o)); a.addCancelAction("關閉");
   const i = await a.present();
   if (i === -1) return;
   const o = opts[i];
   if (o === "設定密碼" || o === "重新設定密碼") { if (await setup()) await (await buildWidget("medium")).presentMedium(); }
+  else if (o === "設定週目標") { await setGoal(); await (await buildWidget("medium")).presentMedium(); }
   else if (o === "清除密碼") { Keychain.remove(KEY_NAME); if (fm.fileExists(CACHE)) fm.remove(CACHE); }
   else {
     const fam = { "預覽小": "small", "預覽中": "medium", "預覽大": "large" }[o];
