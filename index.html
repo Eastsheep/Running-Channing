@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>跑步承廷</title>
 <meta name="apple-mobile-web-app-title" content="跑步承廷">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -43,6 +43,10 @@
 *{box-sizing:border-box}
 :root{padding-top:0;padding-bottom:0}
 html{-webkit-text-size-adjust:100%}
+/* 不讓整頁左右滑動：裁掉任何超出畫面寬度的內容，並關掉雙擊放大（表格、篩選列自己的橫向捲動不受影響） */
+html,body{overflow-x:clip;max-width:100%;overscroll-behavior-x:none;touch-action:manipulation}
+/* iPhone 在輸入框字小於 16px 時會自動放大畫面，放大後就能左右拖動 */
+@media (pointer:coarse){input,select,textarea{font-size:16px!important}}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit}
 button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--s1);outline-offset:2px}
