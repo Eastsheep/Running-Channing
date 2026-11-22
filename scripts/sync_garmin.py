@@ -21,6 +21,10 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "data", "runs.enc.json")
 DETAIL_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "detail")
+WIDGET_OUT = os.path.join(os.path.dirname(__file__), "..", "data", "widget.enc.json")
+# 桌面小工具的檔案用固定的 salt：手機只要第一次花幾秒推導金鑰，之後每次更新都只做解密
+WIDGET_SALT = b"running-channing/widget/v1"
+WIDGET_DAYS = 70  # 小工具只帶最近幾天的跑步，檔案小、手機解密快
 DETAIL_RUNS = 100  # 第一次同步時往回抓明細的跑步次數
 DETAIL_POINTS = 160  # 每次跑步的曲線點數
 ROUTE_POINTS = 400  # 每次跑步的路線點數
@@ -182,16 +186,16 @@ def fetch_details(api, runs, password):
     return n
 
 
-def write_blob(path, payload, password, **extra):
-    blob = encrypt(payload, password)
+def write_blob(path, payload, password, salt=None, **extra):
+    blob = encrypt(payload, password, salt)
     blob.update(extra)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(blob, f)
 
 
-def encrypt(payload, password):
-    salt, iv = os.urandom(16), os.urandom(12)
+def encrypt(payload, password, salt=None):
+    salt, iv = salt or os.urandom(16), os.urandom(12)
     kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=ITERATIONS)
     key = kdf.derive(password.encode("utf-8"))
     ct = AESGCM(key).encrypt(iv, json.dumps(payload, ensure_ascii=False).encode("utf-8"), None)
@@ -204,6 +208,33 @@ def decrypt(blob, password):
     kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=d("salt"), iterations=blob["iter"])
     key = kdf.derive(password.encode("utf-8"))
     return json.loads(AESGCM(key).decrypt(d("iv"), d("ct"), None))
+
+
+def widget_payload(runs, analysis, updated):
+    """給 Scriptable 小工具用的精簡資料：只有最近 WIDGET_DAYS 天、沒有路線和明細。
+    週跑量等統計在手機上算，日期換週時不用等同步也會正確。"""
+    recent = sorted(runs, key=lambda r: r["date"])
+    if recent:
+        last = datetime.fromisoformat(recent[-1]["date"].replace(" ", "T")[:19])
+        cutoff = (last.timestamp() - WIDGET_DAYS * 86400)
+        recent = [r for r in recent if datetime.fromisoformat(r["date"].replace(" ", "T")[:19]).timestamp() >= cutoff]
+    keep = ("date", "title", "dist", "secs", "avgHr")
+    out = {"updated": updated, "runs": [{k: r.get(k) for k in keep} for r in recent]}
+    if analysis and analysis.get("headline"):
+        out["headline"] = analysis["headline"]
+    return out
+
+
+def write_widget(payload, password):
+    """內容沒變就不重寫，避免每次同步都多一個提交。比較時忽略 updated。"""
+    try:
+        with open(WIDGET_OUT, encoding="utf-8") as f:
+            old = decrypt(json.load(f), password)
+        if {**old, "updated": None} == {**payload, "updated": None}:
+            return
+    except Exception:
+        pass
+    write_blob(WIDGET_OUT, payload, password, salt=WIDGET_SALT)
 
 
 def load_previous(password):
@@ -229,6 +260,9 @@ def main():
     prev = load_previous(password) or {}
     want_ai = bool(os.environ.get("DEEPSEEK_API_KEY"))
     if prev.get("runs") == runs and (not want_ai or prev.get("analysis")):
+        # 第一次加入小工具時，舊資料沒變也要補產生一次小工具檔
+        if not os.path.exists(WIDGET_OUT):
+            write_widget(widget_payload(runs, prev.get("analysis"), prev.get("updated")), password)
         print("沒有新的跑步紀錄")
         return
     analysis = prev.get("analysis")
@@ -245,6 +279,7 @@ def main():
     if analysis:
         payload["analysis"] = analysis
     write_blob(OUT, payload, password, updated=updated, count=len(runs))
+    write_widget(widget_payload(runs, analysis, updated), password)
     print(f"已更新 {len(runs)} 筆跑步紀錄")
 
 
