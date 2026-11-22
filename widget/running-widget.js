@@ -13,6 +13,7 @@ const APP_URL = "https://eastsheep.github.io/Running-Channing/";
 const KEY_NAME = "running-channing.widget.key";
 const SALT = "running-channing/widget/v1"; // 要和 scripts/sync_garmin.py 的 WIDGET_SALT 一樣
 const ITER = 250000;
+const VERSION = "2026-11-22.4"; // 每次改版就更新，App 選單會顯示，方便確認手機上是不是最新版
 
 const GOAL_NAME = "running-channing.widget.goal";
 
@@ -655,7 +656,7 @@ async function notify(title, message) {
 async function menu() {
   const has = Keychain.contains(KEY_NAME);
   const a = new Alert();
-  a.title = "跑步承廷小工具";
+  a.title = `跑步承廷小工具 · 版本 ${VERSION}`;
   a.message = has ? "密碼已設定。長按桌面 → 編輯 → 加入 Scriptable 小工具，Script 選這支。" : "第一次使用，請先設定資料密碼。";
   const opts = has ? ["預覽小", "預覽中", "預覽大", "設定週目標", "更新到最新版", "重新設定密碼", "清除密碼"] : ["設定密碼"];
   opts.forEach(o => a.addAction(o)); a.addCancelAction("關閉");
