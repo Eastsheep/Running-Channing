@@ -13,7 +13,7 @@ const APP_URL = "https://eastsheep.github.io/Running-Channing/";
 const KEY_NAME = "running-channing.widget.key";
 const SALT = "running-channing/widget/v1"; // 要和 scripts/sync_garmin.py 的 WIDGET_SALT 一樣
 const ITER = 250000;
-const VERSION = "2026-11-22.8"; // 每次改版就更新，App 選單會顯示，方便確認手機上是不是最新版
+const VERSION = "2026-11-22.9"; // 每次改版就更新，App 選單會顯示，方便確認手機上是不是最新版
 
 const GOAL_NAME = "running-channing.widget.goal";
 
@@ -405,21 +405,21 @@ function weekChart(s, w, h) {
   return dc.getImage();
 }
 
-function header(w, right) {
+function header(w, right, size = 11) {
   const h = w.addStack(); h.centerAlignContent();
-  const sym = SFSymbol.named("figure.run"); sym.applyFont(Font.boldSystemFont(11));
-  const img = h.addImage(sym.image); img.imageSize = new Size(13, 13); img.tintColor = C.accent;
+  const sym = SFSymbol.named("figure.run"); sym.applyFont(Font.boldSystemFont(size));
+  const img = h.addImage(sym.image); img.imageSize = new Size(size + 2, size + 2); img.tintColor = C.accent;
   h.addSpacer(4);
-  text(h, "跑步承廷", F.semi(11), C.fg);
+  text(h, "跑步承廷", F.semi(size), C.fg).minimumScaleFactor = 1;
   h.addSpacer();
-  if (right) text(h, right, F.label(10), C.muted);
+  if (right) text(h, right, F.label(size), C.muted).minimumScaleFactor = 1;
   return h;
 }
 
 function pill(stack, s, size = 10) {
   if (s.deltaPct == null && Math.abs(s.delta) < 0.05) return;
   const up = s.delta >= 0, p = stack.addStack();
-  p.backgroundColor = new Color(up ? "#3DDC97" : "#FF8A80", 0.18); p.cornerRadius = 8; p.setPadding(2, 7, 2, 7);
+  p.backgroundColor = new Color(up ? "#3DDC97" : "#FF8A80", 0.18); p.cornerRadius = 8; p.setPadding(1, 6, 1, 6);
   const v = s.deltaPct != null ? `${Math.round(Math.abs(s.deltaPct) * 100)}%` : `${Math.abs(s.delta).toFixed(1)} km`;
   const t = text(p, `${up ? "▲" : "▼"} ${v}`, F.semi(size), up ? C.up : C.down);
   t.minimumScaleFactor = 1; // 不讓 iOS 自動縮小
@@ -455,7 +455,8 @@ const innerWidth = family => widgetWidth(family) - padFor(family) * 2;
 // 小尺寸：所有內容對齊同一個框。左緣＝標題圖示、圓環、「一」、次數；右緣＝本週、公里數、「日」、比較標籤
 function buildSmall(w, s) {
   const sw = innerWidth("small");
-  header(w, "本週");
+  // 四個角（標題、本週、次數、比較標籤）用同樣 12pt，上下平衡
+  header(w, "本週", 12);
   w.addSpacer(8);
   const row = w.addStack(); row.centerAlignContent();
   const rs = sw < 130 ? 56 : 60;
@@ -471,7 +472,7 @@ function buildSmall(w, s) {
   const f = w.addStack(); f.centerAlignContent();
   text(f, `${s.weekN} 次`, F.semi(12), C.fg).minimumScaleFactor = 1;
   f.addSpacer();
-  pill(f, s, 11);
+  pill(f, s, 12);
 }
 
 function buildMedium(w, s) {
