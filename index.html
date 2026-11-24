@@ -104,9 +104,9 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{ou
 .linkbtn{font-size:12.5px;background:none;border:0;color:var(--s1);cursor:pointer;padding:0}
 
 /* hero */
-.avatar-stage{display:flex;justify-content:center;margin:-64px 0 -6px;pointer-events:none}
-.avatar-stage runner-avatar{pointer-events:auto}
-.avatar-stage runner-avatar{max-width:100%}
+/* 跑者放在藍色卡片右下角，左側內容留出空間 */
+.hero{position:relative;overflow:hidden;padding-right:clamp(120px,34%,170px)!important}
+.hero runner-avatar{position:absolute;right:0;bottom:0;width:clamp(130px,36%,180px);height:auto;aspect-ratio:13/18}
 .hero{background:linear-gradient(135deg,var(--brand),var(--brand-2));color:var(--on-brand);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow)}
 .hero .lbl{font-size:13px;opacity:.85;letter-spacing:.04em}
 .hero .big{font-family:var(--f-display);font-weight:700;font-size:64px;line-height:.95;font-variant-numeric:tabular-nums}
@@ -321,9 +321,8 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
         <div><b id="heroTime">—</b><span>時間</span></div>
         <div><b id="heroAvg">—</b><span>近 4 週平均 km</span></div>
       </div>
+      <runner-avatar id="runner" shadow="off"></runner-avatar>
     </div>
-
-    <div class="avatar-stage"><runner-avatar id="runner" style="width:260px;height:360px"></runner-avatar></div>
 
     <section class="card" id="coachCard">
       <div class="ph"><h3>AI 教練</h3><span class="ai-tag">DeepSeek</span></div>
