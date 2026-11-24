@@ -104,6 +104,9 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{ou
 .linkbtn{font-size:12.5px;background:none;border:0;color:var(--s1);cursor:pointer;padding:0}
 
 /* hero */
+.avatar-stage{display:flex;justify-content:center;margin:-64px 0 -6px;pointer-events:none}
+.avatar-stage runner-avatar{pointer-events:auto}
+.avatar-stage runner-avatar{max-width:100%}
 .hero{background:linear-gradient(135deg,var(--brand),var(--brand-2));color:var(--on-brand);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow)}
 .hero .lbl{font-size:13px;opacity:.85;letter-spacing:.04em}
 .hero .big{font-family:var(--f-display);font-weight:700;font-size:64px;line-height:.95;font-variant-numeric:tabular-nums}
@@ -319,6 +322,8 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
         <div><b id="heroAvg">—</b><span>近 4 週平均 km</span></div>
       </div>
     </div>
+
+    <div class="avatar-stage"><runner-avatar id="runner" style="width:260px;height:360px"></runner-avatar></div>
 
     <section class="card" id="coachCard">
       <div class="ph"><h3>AI 教練</h3><span class="ai-tag">DeepSeek</span></div>
@@ -572,6 +577,7 @@ code{font-family:var(--f-data);font-size:12.5px;background:var(--chip);padding:1
 <div id="tip" hidden></div>
 <div id="drop" class="drop" hidden>放開即可匯入</div>
 
+<script src="runner-avatar.js"></script>
 <script>
 (function(){
 const $=s=>document.querySelector(s);
@@ -1278,7 +1284,7 @@ function importFile(f){
       const span=Math.round((Math.max(...runs.map(r=>r.date))-Math.min(...runs.map(r=>r.date)))/DAY);
       const sn=lastSep==='\t'?'Tab':lastSep===';'?'分號':'逗號';
       msg(`已匯入 <b>${runs.length}</b> 次跑步，涵蓋 ${span} 天。<br>檔案編碼：<b>${lastEnc}</b>${/\.json$/i.test(f.name)?'':` · 分隔符號：${sn}`}${lastCols?` · 另外讀到：${lastCols.join('、')||'（只有日期、距離、時間）'}`:''}。資料存在這個瀏覽器，下次打開還在。`);
-      if(span>+state.range&&state.range!=='all'&&span>180)setRange('365');else render();save();setView('home',true);
+      if(span>+state.range&&state.range!=='all'&&span>180)setRange('365');else render();save();setView('home',true);cheer();
     }catch(e){msg('匯入失敗：'+e.message.replace(/</g,'&lt;'),true)}};
   rd.readAsArrayBuffer(f);
 }
@@ -1309,6 +1315,8 @@ async function decryptBlob(blob,pw){
   const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64(blob.iv)},key,b64(blob.ct));
   return JSON.parse(new TextDecoder().decode(pt));
 }
+/* 跑步紀錄存檔成功後讓總覽頁的跑者跳一下 */
+function cheer(){const a=$('#runner');if(a&&a.cheer)requestAnimationFrame(()=>a.cheer())}
 function applySync(data){
   const runs=data.runs.map(r=>({...r,date:parseDate(r.date)})).filter(r=>r.date&&r.dist&&r.secs);
   if(!runs.length)return;
@@ -1327,7 +1335,7 @@ async function autoSync(){
   const f=$('#unlock');f.hidden=false;setView('home');
   f.onsubmit=async e=>{e.preventDefault();const pw=$('#syncpw').value;if(!pw)return;$('#unlockErr').textContent='解鎖中…';
     try{const data=await decryptBlob(blob,pw);SYNC_PW=pw;if($('#remember').checked){try{localStorage.setItem(PW,pw)}catch(_){}}
-      f.hidden=true;applySync(data)}
+      f.hidden=true;applySync(data);cheer()}
     catch(_){$('#unlockErr').textContent='密碼不對，請再試一次。'}};
 }
 
@@ -1360,7 +1368,7 @@ async function syncNow(){
     const c=await gh('/contents/data/runs.enc.json?ref=main',{headers:{Accept:'application/vnd.github.raw+json'}});
     const blob=c.ok?await c.json():await (await fetch('data/runs.enc.json',{cache:'no-store'})).json();
     const data=await decryptBlob(blob,SYNC_PW);
-    SYNCING='';applySync(data);
+    SYNCING='';applySync(data);cheer();
   }catch(e){msg(e.message||'同步失敗，請再試一次。',true)}
   finally{setSyncing('')}
 }
